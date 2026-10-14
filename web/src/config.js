@@ -124,6 +124,13 @@ export function normalize(raw) {
     return { ...k, name: k.name || k.id, level: roomLevel.get(k.room), rot: k.rot || 0 };
   });
 
+  const media = (raw.media || []).map((m) => {
+    unique(m.id, 'A media player');
+    need(roomIds.has(m.room), `Media player "${m.id}" refers to unknown room "${m.room}"`);
+    need(isPoint(m.pos), `Media player "${m.id}" needs "pos": [x, z]`);
+    return { ...m, name: m.name || m.id, level: roomLevel.get(m.room), rot: m.rot || 0 };
+  });
+
   const scenes = (raw.scenes || []).map((s) => {
     need(typeof s.id === 'string' && s.id, 'A scene is missing an "id"');
     return { id: s.id, name: s.name || s.id, icon: s.icon || 'sun', lights: s.lights || {}, acs: s.acs || {} };
@@ -153,6 +160,7 @@ export function normalize(raw) {
     lights,
     acs,
     locks,
+    media,
     scenes,
     levels,
     bounds: boundsOf(rooms),

@@ -6,7 +6,7 @@ import {
   ShieldCheck, Link2, Copy, MessageSquareText, BookOpen, Terminal, RotateCcw, Globe, Laptop, Clock, Box, Download,
   Undo2, Activity, KeyRound, ArrowUpRight, Camera, Square,
   HouseWifi, Smartphone, Radar, CircleCheck, CircleAlert, ChevronRight, Unlink, LoaderCircle, Router,
-  Lock, LockOpen,
+  Lock, LockOpen, Speaker, Play, Pause, Volume1, Volume2, VolumeX, AudioLines,
 } from 'lucide';
 
 const ICONS = {
@@ -22,6 +22,7 @@ const ICONS = {
   activity: Activity, key: KeyRound, external: ArrowUpRight, camera: Camera, stop: Square,
   homeassistant: HouseWifi, phone: Smartphone, radar: Radar, ok: CircleCheck, alert: CircleAlert,
   next: ChevronRight, unlink: Unlink, spinner: LoaderCircle, bridge: Router, bulb: Lightbulb, lock: Lock, unlock: LockOpen,
+  speaker: Speaker, play: Play, pause: Pause, quieter: Volume1, louder: Volume2, mute: VolumeX, input: AudioLines,
 };
 
 export function icon(name, size = 18, stroke = 1.8) {

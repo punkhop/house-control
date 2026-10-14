@@ -6,6 +6,7 @@ import { icon } from './icons.js';
 import { lightColor } from '../three/lights.js';
 import { MODE_COLORS } from '../three/ac.js';
 import { LOCK_COLORS } from '../three/lock.js';
+import { MEDIA_COLORS, mediaIsOn } from '../three/media.js';
 import { AC_SWINGS } from '../store.js';
 import { haptic, isPhone } from '../bridge.js';
 
@@ -16,6 +17,7 @@ const SWATCHES = ['#ff5a4f', '#ff9a3c', '#ffd84a', '#5fe08a', '#42d6e8', '#4f8df
 
 const TEMP_GRADIENT = 'linear-gradient(90deg, #2f7df6 0%, #58b4f5 34%, #f3e2c0 62%, #f6a54a 82%, #f0762c 100%)';
 const DIM_GRADIENT = 'linear-gradient(90deg, #4a4f5e 0%, #b9a98c 45%, #ffe2b0 100%)';
+const VOLUME_GRADIENT = 'linear-gradient(90deg, #3b3f5c 0%, #6c6fe0 55%, #8b5cff 100%)';
 const KELVIN_GRADIENT = 'linear-gradient(90deg, #ff9438 0%, #ffbd7a 30%, #ffe2c2 62%, #dfe9ff 100%)';
 
 const NAVY = new THREE.Color('#17274f');
@@ -31,6 +33,23 @@ const LOCK_LABEL = {
   locked: 'Locked', unlocked: 'Unlocked', locking: 'Locking…', unlocking: 'Unlocking…',
   jammed: 'Jammed', unknown: 'Checking…', unavailable: 'Unavailable',
 };
+
+const MEDIA_LABEL = {
+  playing: 'Playing', paused: 'Paused', on: 'On', idle: 'On', off: 'Off', standby: 'Off',
+  unknown: 'Checking…', unavailable: 'Unavailable',
+};
+
+/** What's playing ("Halo — Beyoncé", else the app or input), or null. */
+function nowPlaying(s) {
+  return [s.title, s.artist].filter(Boolean).join(' — ') || s.app || s.source || null;
+}
+
+function mediaStatus(s) {
+  if (!mediaIsOn(s)) return MEDIA_LABEL[s.state] || 'Off';
+  const what = nowPlaying(s);
+  if (!what) return MEDIA_LABEL[s.state] || 'On';
+  return s.state === 'paused' ? `Paused · ${what}` : what;
+}
 
 function acTemperatureColor(target, cfg) {
   const t = clamp((target - cfg.min) / (cfg.max - cfg.min), 0, 1);
@@ -295,7 +314,40 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     };
   }
 
+  // Tap opens the sheet; play or pause and power sit on the tile, as the AC's stepper and power do.
+  function mediaTile(cfg) {
+    const sub = h('div.tile-sub');
+    const can = (what) => state.media[cfg.id].can?.includes(what);
+    const playBtn = h('button.mini-power', { 'aria-label': `${cfg.name} play or pause`, onclick: (e) => {
+      e.stopPropagation(); haptic('light'); store.setMedia(cfg.id, { playing: state.media[cfg.id].state !== 'playing' });
+    } });
+    const powerBtn = h('button.mini-power.power', { 'aria-label': `${cfg.name} power`, onclick: (e) => {
+      e.stopPropagation(); haptic('medium'); store.setMedia(cfg.id, { on: !state.media[cfg.id].on });
+    } }, icon('power', 16, 2.2));
+    const el = h('div.tile.media', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'media', id: cfg.id }) },
+      h('div.bubble', icon('speaker', 19)),
+      h('div.tile-text', h('div.tile-name', cfg.name), sub),
+      playBtn, powerBtn);
+    el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') openSheet({ kind: 'media', id: cfg.id }); });
+    let shownPlay = null;
+    return {
+      el, cfg, kind: 'media',
+      update() {
+        const s = state.media[cfg.id];
+        const on = mediaIsOn(s);
+        el.classList.toggle('on', on);
+        el.style.setProperty('--c', MEDIA_COLORS[s.state] || MEDIA_COLORS.on);
+        playBtn.hidden = !on || !can('playback');
+        powerBtn.hidden = !can('power');
+        const playing = s.state === 'playing';
+        if (shownPlay !== playing) { playBtn.replaceChildren(icon(playing ? 'pause' : 'play', 16, 2.2)); shownPlay = playing; }
+        sub.textContent = ui.room === 'all' && !isPhone ? `${mediaStatus(s)} · ${roomName.get(cfg.room)}` : mediaStatus(s);
+      },
+    };
+  }
+
   for (const cfg of config.locks) tiles.set(cfg.id, lockTile(cfg));
+  for (const cfg of config.media) tiles.set(cfg.id, mediaTile(cfg));
   for (const cfg of config.acs) tiles.set(cfg.id, acTile(cfg));
   for (const cfg of config.lights) tiles.set(cfg.id, lightTile(cfg));
 
@@ -317,6 +369,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       if (ui.room === 'all') nodes.push(h('div.group-label', room.name));
       devices.filter((t) => t.kind === 'lock').forEach(add);
       devices.filter((t) => t.kind === 'ac').forEach(add);
+      devices.filter((t) => t.kind === 'media').forEach(add);
       devices.filter((t) => t.kind === 'light').forEach(add);
     }
     if (!nodes.length) nodes.push(h('div.group-label', 'No devices in this room yet'));
@@ -333,7 +386,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   function openSheet(target) {
     ui.sheet = target;
-    sheetView = target.kind === 'ac' ? acSheet(target.id) : lightSheet(target.id);
+    sheetView = target.kind === 'ac' ? acSheet(target.id) : target.kind === 'media' ? mediaSheet(target.id) : lightSheet(target.id);
     sheet.replaceChildren(...sheetView.nodes);
     panel.classList.add('hidden');
     sheet.classList.remove('hidden');
@@ -341,7 +394,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     sheet.inert = false;
     card.classList.add('detail');
     hideTooltip();
-    const cfg = target.kind === 'ac' ? store.acCfg.get(target.id) : store.lightCfg.get(target.id);
+    const cfg = { ac: store.acCfg, media: store.mediaCfg, light: store.lightCfg }[target.kind].get(target.id);
     if (cfg.level !== ui.level) selectLevel(cfg.level, { focus: false });
     onFocus(target.kind === 'ac' ? target : { kind: 'room', id: cfg.room });
     update();
@@ -468,6 +521,73 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     };
   }
 
+  function mediaSheet(id) {
+    const cfg = store.mediaCfg.get(id);
+    const s = () => state.media[id];
+    const set = (patch) => store.setMedia(id, patch);
+    const can = (what) => s().can?.includes(what);
+    const sub = h('div.sheet-sub');
+    const powerBtn = h('button.round.power', { 'aria-label': 'Power', onclick: () => { haptic('medium'); set({ on: !s().on }); } }, icon('power', 21, 2.2));
+    const big = bigNumber('%');
+    const mute = h('button.toggle-chip', { onclick: () => { haptic('light'); set({ muted: !s().muted }); } }, icon('mute', 17), 'Mute', h('span.switch'));
+    const playing = h('div.sheet-note', { style: { marginTop: '14px' } });
+    const slider = createSlider({
+      min: 0, max: 100, value: Math.round((s().volume ?? 0) * 100), gradient: VOLUME_GRADIENT, detent: 5,
+      onInput: (v) => set({ volume: v / 100 }),
+    });
+    const step = (d) => () => { haptic('tick'); set({ volume: (s().volume ?? 0) + d }); };
+    const volumeRow = h('div.slider-row',
+      h('button.round', { 'aria-label': 'Quieter', onclick: step(-0.05) }, icon('quieter', 18)),
+      slider.el,
+      h('button.round', { 'aria-label': 'Louder', onclick: step(0.05) }, icon('louder', 18)));
+
+    // The input picker is the AC sheet's option button and menu.
+    const inputValue = h('div.option-value');
+    const input = h('button.option', { onclick: () => {
+      input.classList.add('open');
+      openMenu(clip, input, (s().sources || []).map((v) => ({
+        label: v, selected: s().source === v, icon: s().source === v ? icon('check', 16, 2.4) : null,
+        action: () => { haptic('light'); set({ source: v }); },
+      })), { onClose: () => input.classList.remove('open') });
+    } }, icon('input', 24, 1.6), h('span.corner', icon('down', 15, 2.2)), h('div.option-label', 'Input'), inputValue);
+    const playValue = h('div.option-value');
+    let playIcon = h('span');
+    const play = h('button.option', { onclick: () => { haptic('light'); set({ playing: s().state !== 'playing' }); } },
+      playIcon, h('span.corner.dot'), h('div.option-label', 'Playback'), playValue);
+    const options = h('div.options', input, play);
+    let shownPlay = null;
+
+    return {
+      nodes: [sheetHead(cfg.name, sub, powerBtn), h('div.readout', big.el, mute), playing, volumeRow, options],
+      update() {
+        const m = s();
+        const on = mediaIsOn(m);
+        powerBtn.hidden = !can('power');
+        powerBtn.classList.toggle('on', on);
+        sub.replaceChildren(roomName.get(cfg.room), ' · ', h('b', MEDIA_LABEL[m.state] || 'On'));
+        const what = on ? [[m.title, m.artist].filter(Boolean).join(' — '), m.app].filter(Boolean).join(' · ') : '';
+        playing.hidden = !what;
+        playing.replaceChildren(icon('speaker', 20), what);
+        big.el.hidden = !can('volume');
+        big.set(Math.round((m.volume ?? 0) * 100), !on || m.muted);
+        volumeRow.hidden = !can('volume');
+        slider.set(Math.round((m.volume ?? 0) * 100));
+        mute.hidden = !can('mute');
+        mute.classList.toggle('on', Boolean(m.muted));
+        input.hidden = !can('source');
+        inputValue.textContent = m.source || '—';
+        play.hidden = !can('playback') || !on;
+        play.classList.toggle('active', m.state === 'playing');
+        playValue.textContent = m.state === 'playing' ? 'Playing' : m.state === 'paused' ? 'Paused' : 'Not playing';
+        const ic = m.state === 'playing' ? 'pause' : 'play';
+        if (shownPlay !== ic) { const next = icon(ic, 24, 1.6); playIcon.replaceWith(next); playIcon = next; shownPlay = ic; }
+        const shown = [input, play].filter((el) => !el.hidden).length;
+        options.hidden = !shown;
+        options.style.gridTemplateColumns = `repeat(${shown || 1}, 1fr)`;
+      },
+    };
+  }
+
   function lightSheet(id) {
     const cfg = store.lightCfg.get(id);
     const s = () => state.lights[id];
@@ -542,6 +662,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       const cfg = store.lightCfg.get(hit.id);
       const s = state.lights[hit.id];
       name = cfg.name; status = lightStatus(cfg, s); on = s.on; color = css(lightColor(s, tmp));
+    } else if (hit.kind === 'media') {
+      const s = state.media[hit.id];
+      name = store.mediaCfg.get(hit.id).name; status = mediaStatus(s); on = mediaIsOn(s); color = MEDIA_COLORS[s.state] || MEDIA_COLORS.on;
     } else if (hit.kind === 'lock') {
       const s = state.locks[hit.id].state;
       name = store.lockCfg.get(hit.id).name; status = LOCK_LABEL[s]; on = s !== 'unknown' && s !== 'unavailable'; color = LOCK_COLORS[s];

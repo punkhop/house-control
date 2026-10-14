@@ -26,14 +26,25 @@ function defaultLock(cfg) {
 
 export const LOCK_STATES = ['locked', 'unlocked', 'locking', 'unlocking', 'jammed', 'unknown', 'unavailable'];
 
+// A linked media player reports itself, including what it can do; a simulated one is a plain speaker.
+function defaultMedia(cfg) {
+  if (cfg.link?.id) return { state: 'unknown', on: false, can: [] };
+  return { state: 'off', on: false, volume: 0.3, muted: false, can: ['power', 'playback', 'volume', 'mute'] };
+}
+
+// What a media player reports. Fields it leaves out (nothing playing, off) are cleared.
+const MEDIA_FIELDS = ['state', 'on', 'volume', 'muted', 'source', 'sources', 'title', 'artist', 'app', 'can'];
+
 export function createStore(config) {
   const listeners = new Set();
   const lightCfg = new Map(config.lights.map((l) => [l.id, l]));
   const acCfg = new Map(config.acs.map((a) => [a.id, a]));
   const lockCfg = new Map(config.locks.map((k) => [k.id, k]));
+  const mediaCfg = new Map(config.media.map((m) => [m.id, m]));
 
-  const state = { lights: {}, acs: {}, locks: {}, scene: null };
+  const state = { lights: {}, acs: {}, locks: {}, media: {}, scene: null };
   for (const k of config.locks) state.locks[k.id] = defaultLock(k);
+  for (const m of config.media) state.media[m.id] = defaultMedia(m);
   for (const l of config.lights) state.lights[l.id] = defaultLight(l);
   for (const a of config.acs) state.acs[a.id] = defaultAC(a, config.outdoorTemp);
   // What each real AC can do, as reported by the native side. A simulated AC can do everything.
@@ -68,19 +79,19 @@ export function createStore(config) {
       post('summary', summary());
       // The native shell passes this on to its other views of the same home (the panel
       // and the island each run their own store), which adopt it without re-sending.
-      if (!change.adopted) post('state', { lights: state.lights, acs: state.acs, locks: state.locks, scene: state.scene, source: change.source ?? store.source ?? null });
+      if (!change.adopted) post('state', { lights: state.lights, acs: state.acs, locks: state.locks, media: state.media, scene: state.scene, source: change.source ?? store.source ?? null });
     }
   }
 
   // One command per device is in flight at a time. Whatever changes meanwhile is merged
   // into a single follow-up, so dragging a slider costs a couple of requests (or infrared
   // key presses) instead of dozens. A change the device refuses is rolled back.
-  const COOL_DOWN = { light: 300, ac: 900, lock: 1500 };
+  const COOL_DOWN = { light: 300, ac: 900, lock: 1500, media: 400 };
   const outbox = new Map();
 
   function transmit(kind, id, patch) {
     if (!isNative) return Promise.resolve();
-    const current = { light: state.lights, ac: state.acs, lock: state.locks }[kind][id];
+    const current = { light: state.lights, ac: state.acs, lock: state.locks, media: state.media }[kind][id];
     const sent = call('command', { kind, id, patch, state: { ...current } });
     // Never let a lost reply block the device for good.
     return Promise.race([sent, new Promise((resolve) => setTimeout(resolve, 20000))]);
@@ -111,6 +122,12 @@ export function createStore(config) {
   }
 
   function rollback(kind, id, patch, before, entry, error) {
+    if (kind === 'media') {
+      Object.assign(state.media[id], before);
+      emit({ type: 'media', id, reverted: true });
+      store.onDeviceError?.(id, error.message);
+      return;
+    }
     if (kind === 'lock') {
       state.locks[id].state = before.state;
       emit({ type: 'lock', id, reverted: true });
@@ -187,6 +204,39 @@ export function createStore(config) {
     return true;
   }
 
+  // The panel asks for power, play or pause, volume, mute or an input; the player reports the rest.
+  function writeMedia(id, patch, { remote = false } = {}) {
+    const cur = state.media[id];
+    if (!cur) return false;
+    if (remote) {
+      const next = Object.fromEntries(MEDIA_FIELDS.filter((k) => patch[k] !== undefined).map((k) => [k, patch[k]]));
+      if (MEDIA_FIELDS.every((k) => JSON.stringify(cur[k]) === JSON.stringify(next[k]))) return false;
+      for (const k of MEDIA_FIELDS) delete cur[k];
+      Object.assign(cur, next);
+      return true;
+    }
+    const send = {};
+    if ('on' in patch && Boolean(patch.on) !== cur.on) send.on = Boolean(patch.on);
+    if ('playing' in patch && Boolean(patch.playing) !== (cur.state === 'playing')) send.playing = Boolean(patch.playing);
+    if ('volume' in patch) {
+      const v = clamp(Math.round(patch.volume * 100) / 100, 0, 1);
+      if (v !== cur.volume) send.volume = v;
+    }
+    if ('muted' in patch && Boolean(patch.muted) !== cur.muted) send.muted = Boolean(patch.muted);
+    if ('source' in patch && patch.source !== cur.source) send.source = patch.source;
+    // Picking an input is what switches a receiver on.
+    if (send.source && !cur.on) send.on = true;
+    if (!Object.keys(send).length) return false;
+    const before = Object.fromEntries(['state', 'on', 'volume', 'muted', 'source'].map((k) => [k, cur[k]]));
+    if ('on' in send) { cur.on = send.on; cur.state = send.on ? 'on' : 'off'; }
+    if ('playing' in send) cur.state = send.playing ? 'playing' : 'paused';
+    if ('volume' in send) cur.volume = send.volume;
+    if ('muted' in send) cur.muted = send.muted;
+    if ('source' in send) cur.source = send.source;
+    dispatch('media', id, send, before);
+    return true;
+  }
+
   function summary() {
     const lights = Object.values(state.lights);
     const acs = Object.entries(state.acs).filter(([, a]) => a.on);
@@ -206,6 +256,7 @@ export function createStore(config) {
     lightCfg,
     acCfg,
     lockCfg,
+    mediaCfg,
     summary,
     /** Set by the UI: called with (device id, message) when a real device refuses a change. */
     onDeviceError: null,
@@ -239,6 +290,11 @@ export function createStore(config) {
       if (writeLock(id, { locked })) emit({ type: 'lock', id });
     },
 
+    /** Power, play or pause, volume, mute or input for a media player. */
+    setMedia(id, patch) {
+      if (writeMedia(id, patch)) emit({ type: 'media', id });
+    },
+
     applyScene(sceneId) {
       const scene = config.scenes.find((s) => s.id === sceneId);
       if (!scene) return;
@@ -257,7 +313,7 @@ export function createStore(config) {
     },
 
     /** Reports the state again, for a view that has only just started. */
-    share() { post('state', { lights: state.lights, acs: state.acs, locks: state.locks, scene: state.scene }); },
+    share() { post('state', { lights: state.lights, acs: state.acs, locks: state.locks, media: state.media, scene: state.scene }); },
 
     // The state of another view of this home (see emit). Nothing goes to the devices:
     // the view where the change was made has already sent it.
@@ -266,6 +322,7 @@ export function createStore(config) {
       for (const [id, s] of Object.entries(other.lights || {})) any = writeLight(id, s, { remote: true }) || any;
       for (const [id, s] of Object.entries(other.acs || {})) any = writeAC(id, s, { remote: true }) || any;
       for (const [id, s] of Object.entries(other.locks || {})) any = writeLock(id, s, { remote: true }) || any;
+      for (const [id, s] of Object.entries(other.media || {})) any = writeMedia(id, s, { remote: true }) || any;
       const scene = other.scene ?? null;
       if (scene !== state.scene) { state.scene = scene; any = true; }
       if (any) emit({ type: 'bulk', remote: true, adopted: true, source: other.source || null });
@@ -277,6 +334,7 @@ export function createStore(config) {
       for (const [id, patch] of Object.entries(update.lights || {})) any = writeLight(id, patch, { remote: true }) || any;
       for (const [id, patch] of Object.entries(update.acs || {})) any = writeAC(id, patch, { remote: true }) || any;
       for (const [id, patch] of Object.entries(update.locks || {})) any = writeLock(id, patch, { remote: true }) || any;
+      for (const [id, patch] of Object.entries(update.media || {})) any = writeMedia(id, patch, { remote: true }) || any;
       for (const [id, f] of Object.entries(update.features || {})) {
         if (!state.acs[id] || JSON.stringify(features[id]) === JSON.stringify(f)) continue;
         features[id] = f;

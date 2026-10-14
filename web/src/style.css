@@ -395,7 +395,7 @@ html.native .card { width: auto; height: auto; box-shadow:
   background: var(--c);
   box-shadow: 0 0 22px -3px var(--c);
 }
-.tile.ac.on .bubble { color: #06162c; }
+.tile.ac.on .bubble, .tile.media.on .bubble { color: #06162c; }
 
 .tile-text { flex: 1; min-width: 0; }
 .tile-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -429,7 +429,7 @@ html.native .card { width: auto; height: auto; box-shadow:
 .tile.dragging .tile-level { transition: opacity 200ms; height: 4px; }
 .tile.dimmable { cursor: ew-resize; }
 
-.tile.ac { grid-column: 1 / -1; cursor: pointer; }
+.tile.ac, .tile.media { grid-column: 1 / -1; cursor: pointer; }
 .stepper { display: flex; align-items: center; gap: 2px; flex: none; }
 .stepper button {
   width: 28px; height: 28px; border-radius: 10px;
@@ -450,7 +450,7 @@ html.native .card { width: auto; height: auto; box-shadow:
 }
 @media (hover: hover) { .mini-power:hover { background: rgba(255, 255, 255, 0.16); color: var(--text); } }
 .mini-power:active { transform: scale(0.88); }
-.tile.ac.on .mini-power { background: var(--c); color: #06162c; box-shadow: 0 0 18px -4px var(--c); }
+.tile.ac.on .mini-power, .tile.media.on .mini-power.power { background: var(--c); color: #06162c; box-shadow: 0 0 18px -4px var(--c); }
 
 .tile:focus-visible { outline: none; border-color: rgba(120, 175, 255, 0.8); }
 
