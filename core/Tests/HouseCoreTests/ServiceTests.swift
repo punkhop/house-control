@@ -52,6 +52,24 @@ final class ServiceTests: XCTestCase {
         let lock = HomeAssistantService.device(from: ["entity_id": "lock.front_door", "state": "unavailable", "attributes": [:]])
         XCTAssertEqual(lock?.kind, .lock)
         XCTAssertEqual(lock?.online, false)
+        let door = HomeAssistantService.device(from: [
+            "entity_id": "binary_sensor.front_door", "state": "off", "attributes": ["device_class": "door"],
+        ])
+        XCTAssertEqual(door?.kind, .contact)
+        XCTAssertEqual(door?.detail, "contact sensor · door")
+        XCTAssertNil(HomeAssistantService.device(from: ["entity_id": "binary_sensor.motion", "state": "off", "attributes": ["device_class": "motion"]]))
+    }
+
+    func testHomeAssistantReadsContactSensors() {
+        func state(_ value: String) -> String? {
+            HomeAssistantService.reading(from: ["entity_id": "binary_sensor.door", "state": value, "attributes": ["device_class": "door"]]).contact?["state"] as? String
+        }
+        XCTAssertEqual(state("on"), "open")
+        XCTAssertEqual(state("off"), "closed")
+        XCTAssertNil(state("unavailable"))
+        XCTAssertFalse(HomeAssistantService.reading(from: ["entity_id": "binary_sensor.door", "state": "unavailable"]).online)
+        // Read only: nothing is ever sent to a contact sensor.
+        XCTAssertTrue(HomeAssistantService.calls(for: "binary_sensor.door", patch: ["on": true], state: [:], fans: [:], modes: [:]).isEmpty)
     }
 
     func testHomeAssistantReadsAndSendsLocks() {
@@ -274,10 +292,11 @@ final class ServiceTests: XCTestCase {
                     ["id": "ac2", "sensor": ["service": "homekit", "id": "S1"]]],
             "locks": [["id": "door", "link": ["service": "homekit", "id": "K1"]]],
             "media": [["id": "tv", "link": ["service": "homekit", "id": "M1"]]],
+            "sensors": [["id": "front-door", "type": "contact", "link": ["service": "homekit", "id": "C1"]]],
         ])
-        XCTAssertEqual(hub.linkedDeviceCount, 4)
+        XCTAssertEqual(hub.linkedDeviceCount, 5)
         XCTAssertTrue(hub.canPoll)
-        XCTAssertEqual(fake.watched, ["L1", "A1", "S1", "K1", "M1"])
+        XCTAssertEqual(fake.watched, ["L1", "A1", "S1", "K1", "M1", "C1"])
 
         let sent = expectation(description: "sent")
         hub.command(["id": "lamp", "kind": "light", "patch": ["on": true], "state": ["on": true]]) { reply in
@@ -305,6 +324,7 @@ final class ServiceTests: XCTestCase {
         XCTAssertNotNil((update?["features"] as? [String: Any])?["ac"])
         XCTAssertEqual((update?["locks"] as? [String: [String: Any]])?["door"]?["state"] as? String, "locked")
         XCTAssertEqual((update?["media"] as? [String: [String: Any]])?["tv"]?["state"] as? String, "playing")
+        XCTAssertEqual((update?["sensors"] as? [String: [String: Any]])?["front-door"]?["state"] as? String, "open")
 
         var simulated: [String: Any]?
         hub.command(["id": "sim", "kind": "light", "patch": ["on": true]]) { simulated = $0 }
@@ -463,6 +483,7 @@ private final class FakeService: DeviceService {
             "S1": DeviceReading(temperature: 19.5),
             "K1": DeviceReading(lock: ["state": lockState]),
             "M1": DeviceReading(media: ["state": "playing", "on": true]),
+            "C1": DeviceReading(contact: ["state": "open"]),
         ].filter { ids.contains($0.key) }
     }
     func send(kind: DeviceKind, id: String, patch: [String: Any], state: [String: Any]) async throws {

@@ -92,7 +92,7 @@ public final class DeviceHub {
         tuyaSensors = [:]
         defer { watchLinks() }
         guard let plan else { return }
-        for (kind, key) in [("light", "lights"), ("ac", "acs"), ("lock", "locks"), ("media", "media")] {
+        for (kind, key) in [("light", "lights"), ("ac", "acs"), ("lock", "locks"), ("media", "media"), ("contact", "sensors")] {
             for device in plan[key] as? [[String: Any]] ?? [] {
                 guard let id = device["id"] as? String else { continue }
                 let sensor = Self.sensorLink(device["sensor"])
@@ -243,7 +243,7 @@ public final class DeviceHub {
         let (fromTuya, fromServices) = await (tuyaPart, servicePart)
         guard fromTuya != nil || fromServices != nil else { return nil }
         var merged: [String: Any] = [:]
-        for key in ["lights", "acs", "locks", "media", "features"] {
+        for key in ["lights", "acs", "locks", "media", "sensors", "features"] {
             var section = fromTuya?[key] as? [String: Any] ?? [:]
             for (id, value) in fromServices?[key] as? [String: Any] ?? [:] {
                 if var existing = section[id] as? [String: Any], let more = value as? [String: Any] {
@@ -275,7 +275,8 @@ public final class DeviceHub {
             answered = true
         }
         guard answered else { return nil }
-        var lights: [String: Any] = [:], acs: [String: Any] = [:], locks: [String: Any] = [:], media: [String: Any] = [:], features: [String: Any] = [:]
+        var lights: [String: Any] = [:], acs: [String: Any] = [:], locks: [String: Any] = [:], media: [String: Any] = [:], sensors: [String: Any] = [:]
+        var features: [String: Any] = [:]
         for (id, link) in serviceLinks {
             let reading = readings[link.service]?[link.id]
             if link.kind == .lock, let reading {
@@ -283,6 +284,9 @@ public final class DeviceHub {
             }
             if link.kind == .media, let reading {
                 media[id] = reading.online ? reading.media ?? ["state": "unknown"] : ["state": "unavailable"]
+            }
+            if link.kind == .contact, let reading {
+                sensors[id] = reading.online ? reading.contact ?? ["state": "unknown"] : ["state": "unavailable"]
             }
             if link.kind == .light, let light = reading?.light, reading?.online != false { lights[id] = light }
             if link.kind == .ac {
@@ -295,7 +299,7 @@ public final class DeviceHub {
         for (id, sensor) in tuyaSensors {
             if let t = readings[sensor.service]?[sensor.id]?.temperature { acs[id] = ["roomTemp": t] }
         }
-        return ["lights": lights, "acs": acs, "locks": locks, "media": media, "features": features]
+        return ["lights": lights, "acs": acs, "locks": locks, "media": media, "sensors": sensors, "features": features]
     }
 
     private func pollSmartLife() async -> [String: Any]? {

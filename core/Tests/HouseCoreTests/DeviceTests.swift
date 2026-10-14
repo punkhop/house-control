@@ -71,6 +71,15 @@ final class DeviceTests: XCTestCase {
         XCTAssertNotEqual(PlanStore.revision(of: data), PlanStore.revision(of: data + Data(" ".utf8)))
     }
 
+    func testPlanStoreKeepsContactSensors() throws {
+        let sensor: [String: Any] = ["id": "front-door", "name": "Front door", "room": "hall", "pos": [2.5, 0], "type": "contact",
+                                     "link": ["service": "homeassistant", "id": "binary_sensor.front_door"]]
+        let plan = try PlanStore.validate(PlanStore.encode(["name": "Home", "rooms": [], "sensors": [sensor]]))
+        let back = (plan["sensors"] as? [[String: Any]])?.first
+        XCTAssertEqual(back?["type"] as? String, "contact")
+        XCTAssertEqual((back?["link"] as? [String: Any])?["id"] as? String, "binary_sensor.front_door")
+    }
+
     func testSecretStores() {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).json")
         let file = FileSecretStore(url: url)

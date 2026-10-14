@@ -37,7 +37,7 @@ public extension DeviceService {
 }
 
 public enum DeviceKind: String {
-    case light, ac, sensor, lock, media
+    case light, ac, sensor, lock, media, contact
 
     /// A lamp the panel shows as on, given a new brightness or colour, is switched on as well:
     /// the real one may be off (switched off elsewhere since the last read), and some
@@ -89,6 +89,8 @@ public struct DeviceReading {
     /// `volume` (0-1), `muted`, `source`, `sources`, `title`, `artist`, `app`; `can` lists what it
     /// accepts: power, playback, volume, mute, source.
     public var media: [String: Any]?
+    /// A door or window contact sensor: `state` is open or closed.
+    public var contact: [String: Any]?
     /// What an AC can do: `modes`, `fans`, `swing`, `sleep`, `eco` (see the store's acFeatures).
     public var features: [String: Any]?
     /// A temperature sensor's reading in °C.
@@ -96,11 +98,13 @@ public struct DeviceReading {
     public var online = true
 
     public init(light: [String: Any]? = nil, ac: [String: Any]? = nil, lock: [String: Any]? = nil,
-                media: [String: Any]? = nil, features: [String: Any]? = nil, temperature: Double? = nil, online: Bool = true) {
+                media: [String: Any]? = nil, contact: [String: Any]? = nil, features: [String: Any]? = nil,
+                temperature: Double? = nil, online: Bool = true) {
         self.light = light
         self.ac = ac
         self.lock = lock
         self.media = media
+        self.contact = contact
         self.features = features
         self.temperature = temperature
         self.online = online

@@ -185,6 +185,10 @@ public final class HomeAssistantService: DeviceService {
         case "media_player":
             device = ServiceDevice(id: id, name: name, kind: .media)
             device.detail = "media player" + ((attributes["device_class"] as? String).map { " · " + $0 } ?? "")
+        case "binary_sensor":
+            guard isContact(attributes) else { return nil }
+            device = ServiceDevice(id: id, name: name, kind: .contact)
+            device.detail = "contact sensor · " + (attributes["device_class"] as? String ?? "")
         default:
             return nil
         }
@@ -203,6 +207,10 @@ public final class HomeAssistantService: DeviceService {
     static func isTemperature(_ attributes: [String: Any]) -> Bool {
         (attributes["device_class"] as? String) == "temperature"
             || ["°C", "°F"].contains(attributes["unit_of_measurement"] as? String ?? "")
+    }
+
+    static func isContact(_ attributes: [String: Any]) -> Bool {
+        ["door", "window", "opening"].contains(attributes["device_class"] as? String ?? "")
     }
 
     /// The panel's AC modes and the climate entity's names for them.
@@ -266,6 +274,8 @@ public final class HomeAssistantService: DeviceService {
             reading.lock = ["state": known.contains(value) ? (value.hasPrefix("open") ? "unlocked" : value) : "unknown"]
         } else if id.hasPrefix("media_player.") {
             reading.media = media(value, attributes)
+        } else if id.hasPrefix("binary_sensor.") {
+            reading.contact = ["state": value == "on" ? "open" : value == "off" ? "closed" : "unknown"]
         } else if id.hasPrefix("sensor."), let t = Double(value) {
             reading.temperature = (attributes["unit_of_measurement"] as? String) == "°F" ? (t - 32) * 5 / 9 : t
         }
