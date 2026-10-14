@@ -166,9 +166,9 @@ public final class HomeAssistantService: DeviceService {
             let modes = attributes["supported_color_modes"] as? [String] ?? []
             device.capabilities = lightCapabilities(modes)
             device.detail = "light · " + (modes.isEmpty ? "on/off" : modes.joined(separator: ", "))
-        case "switch":
+        case "switch", "humidifier":
             device = ServiceDevice(id: id, name: name, kind: .light)
-            device.detail = "switch · on/off"
+            device.detail = domain + " · on/off"
         case "climate":
             device = ServiceDevice(id: id, name: name, kind: .ac)
             if let lo = attributes.double("min_temp"), let hi = attributes.double("max_temp") {
@@ -230,7 +230,7 @@ public final class HomeAssistantService: DeviceService {
         var reading = DeviceReading(online: !["unavailable", "unknown"].contains(value))
         guard reading.online else { return reading }
 
-        if id.hasPrefix("light.") || id.hasPrefix("switch.") {
+        if id.hasPrefix("light.") || id.hasPrefix("switch.") || id.hasPrefix("humidifier.") {
             var light: [String: Any] = ["on": value == "on"]
             if value == "on", let b = attributes.double("brightness") { light["brightness"] = max(0.05, min(1, b / 255)) }
             switch attributes["color_mode"] as? String {
@@ -323,7 +323,7 @@ public final class HomeAssistantService: DeviceService {
             Call(domain: d, service: service, data: target.merging(data) { $1 })
         }
 
-        if domain == "switch" {
+        if domain == "switch" || domain == "humidifier" {
             guard let on = patch["on"] as? Bool else { return [] }
             return [call(on ? "turn_on" : "turn_off")]
         }

@@ -183,6 +183,10 @@ final class ServiceTests: XCTestCase {
         let colour = HomeAssistantService.calls(for: "light.a", patch: ["color": "#ff8000"], state: [:], fans: [:], modes: [:])
         XCTAssertEqual(colour.first?.data["rgb_color"] as? [Int], [255, 128, 0])
         XCTAssertEqual(HomeAssistantService.calls(for: "switch.p", patch: ["on": true], state: [:], fans: [:], modes: [:]).map(\.service), ["turn_on"])
+        let mist = HomeAssistantService.calls(for: "humidifier.bed", patch: ["on": false], state: [:], fans: [:], modes: [:])
+        XCTAssertEqual(mist.map(\.domain), ["humidifier"])
+        XCTAssertEqual(mist.map(\.service), ["turn_off"])
+        XCTAssertEqual(HomeAssistantService.reading(from: ["entity_id": "humidifier.bed", "state": "on", "attributes": [:]]).light?["on"] as? Bool, true)
 
         let modes = HomeAssistantService.modeTable(["off", "cool", "heat_cool", "fan_only"])
         XCTAssertEqual(modes, ["cool": "cool", "auto": "heat_cool", "fan": "fan_only"])
