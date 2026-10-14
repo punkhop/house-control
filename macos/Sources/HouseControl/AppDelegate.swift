@@ -31,6 +31,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return agent
     }()
     private var lastSummary: [String: Any] = [:]
+    /// The same home as a full page in a browser on this Mac: http://localhost:3017.
+    private lazy var browser = BrowserBridge(root: WebHost.assetRoot)
+    private lazy var browserServer = LoopbackHTTPServer { [unowned self] request in await self.browser.handle(request) }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMainMenu()
@@ -54,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         reloadLinks()
         host.load()
         startSync()
+        startBrowserPage()
         if islandEnabled { showIsland() }
 
         // HOUSE_SNAPSHOT_DIR=<folder> writes panel.png and island.png there a few seconds
@@ -438,6 +442,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func stopAgent() { agent.stop() }
+
+    // MARK: - Browser page
+
+    private func startBrowserPage() {
+        browser.boot = { [unowned self] in self.plans.bootPayload() }
+        browser.poll = { [unowned self] in await self.hub.poll() }
+        browser.onMessage = { [unowned self] message, reply in
+            switch message["type"] as? String {
+            case "command":
+                self.hub.command(message) { reply($0) }
+            case "state":
+                // What the page changed shows in the menu bar panel and the island too.
+                var state = message
+                state["type"] = nil
+                for host in [self.panel.host, self.island?.host] { host?.call("adopt", state) }
+                reply([:])
+            default:
+                reply(message["callId"] == nil ? [:] : ["error": "Only available in the menu bar app"])
+            }
+        }
+        browserServer.start(preferredPort: BrowserBridge.port) { [weak self] result in
+            // Any other port would be a different address in the browser each launch.
+            if case .success(let port) = result, port == BrowserBridge.port { return }
+            NSLog("House Control: localhost:%d is taken, the browser page is off", Int(BrowserBridge.port))
+            self?.browserServer.stop()
+        }
+    }
 
     // MARK: - Device state
 

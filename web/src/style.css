@@ -798,3 +798,28 @@ html.ios .fatal { margin: calc(env(safe-area-inset-top, 0px) + 20px) 16px 0; wid
     animation-duration: 1ms !important; transition-duration: 1ms !important;
   }
 }
+
+/* ---------- browser page (localhost:3017): the house fills the window, the controls
+   become a column on the right ---------- */
+
+html.web .plan-menu { display: none; }
+
+@media (min-width: 900px) {
+  html.web #app { place-items: stretch; padding: 16px; }
+  html.web .card { --side: 440px; --stage-h: 100%; width: auto; height: auto; border-radius: 28px; }
+  html.web .notch { display: none; }
+  html.web .stage { inset: 0 var(--side) 0 0; height: auto; }
+  html.web .stage canvas { -webkit-mask-image: none; mask-image: none; }
+  html.web .top { right: var(--side); }
+  html.web .panel, html.web .sheet {
+    inset: 0 0 0 auto;
+    width: var(--side);
+    padding: 22px 18px 18px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 1px solid var(--line);
+  }
+}
+
+@media (min-width: 1500px) {
+  html.web .card { --side: 500px; }
+}

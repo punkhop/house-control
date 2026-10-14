@@ -5,7 +5,7 @@ import { createPanel } from './ui/panel.js';
 import { createAgent } from './agent/tools.js';
 import { h, openMenu } from './ui/dom.js';
 import { icon } from './ui/icons.js';
-import { isNative, isPhone, post, incoming, haptic } from './bridge.js';
+import { isNative, isWeb, isPhone, post, incoming, haptic } from './bridge.js';
 
 const DEMO_PLANS = [
   { id: 'home', name: 'Demo · Apartment' },
@@ -15,6 +15,7 @@ const STAGE_INSETS = [62, 50]; // header above, panel overlap below
 
 const app = document.getElementById('app');
 if (isNative) document.documentElement.classList.add('native');
+if (isWeb) document.documentElement.classList.add('web');
 if (isPhone) document.documentElement.classList.add('ios');
 
 // ?safeTop=62&safeBottom=34 stands in for a phone's safe areas when its layout is looked at in a browser.
@@ -91,9 +92,12 @@ async function boot() {
 
   panel.attach(world);
   // On a phone the header sits lower (status bar) but is closer to the model.
-  const applyInsets = () => (isPhone ? world.setInsets(50 + safeAreaTop(), 36) : world.setInsets(...STAGE_INSETS));
+  // The browser page's controls sit beside the house, not over it (style.css, 900px up).
+  const sideBySide = () => isWeb && innerWidth >= 900;
+  const applyInsets = () => (isPhone ? world.setInsets(50 + safeAreaTop(), 36)
+    : sideBySide() ? world.setInsets(70, 12) : world.setInsets(...STAGE_INSETS));
   applyInsets();
-  new ResizeObserver(() => (isPhone ? applyInsets() : world.resize())).observe(panel.canvas);
+  new ResizeObserver(() => (isPhone || isWeb ? applyInsets() : world.resize())).observe(panel.canvas);
 
   const show = () => { world.setRunning(true); world.intro(); };
   const hide = () => { world.setRunning(false); };
@@ -143,7 +147,8 @@ async function boot() {
 
   function planMenu(anchor) {
     const current = window.__HOUSE_BOOT__?.plan ?? (new URLSearchParams(location.search).get('plan') || 'home');
-    const items = DEMO_PLANS.map((p) => ({
+    // The browser page always shows the home the app has open.
+    const items = isWeb ? [] : DEMO_PLANS.map((p) => ({
       label: p.name,
       selected: p.id === current,
       icon: p.id === current ? icon('check', 16, 2.4) : null,
@@ -152,7 +157,7 @@ async function boot() {
         else location.search = `?plan=${p.id}`;
       },
     }));
-    if (window.__HOUSE_BOOT__?.hasCustomPlan) {
+    if (window.__HOUSE_BOOT__?.hasCustomPlan && !isWeb) {
       items.unshift({
         label: 'My home',
         selected: current === 'custom',

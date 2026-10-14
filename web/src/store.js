@@ -1,4 +1,4 @@
-import { post, call, isNative } from './bridge.js';
+import { post, call, hasDevices } from './bridge.js';
 
 const STORAGE_KEY = 'house-control:state:v1';
 
@@ -99,7 +99,7 @@ export function createStore(config) {
   const outbox = new Map();
 
   function transmit(kind, id, patch) {
-    if (!isNative) return Promise.resolve();
+    if (!hasDevices) return Promise.resolve();
     const current = { light: state.lights, ac: state.acs, lock: state.locks, media: state.media }[kind][id];
     const sent = call('command', { kind, id, patch, state: { ...current } });
     // Never let a lost reply block the device for good.
@@ -208,7 +208,7 @@ export function createStore(config) {
     if (cur.state === (locked ? 'locked' : 'unlocked')) return false;
     const before = { state: cur.state };
     // A real lock takes a few seconds; it reports the end state itself.
-    cur.state = isNative && lockCfg.get(id).link?.id ? (locked ? 'locking' : 'unlocking') : (locked ? 'locked' : 'unlocked');
+    cur.state = hasDevices && lockCfg.get(id).link?.id ? (locked ? 'locking' : 'unlocking') : (locked ? 'locked' : 'unlocked');
     dispatch('lock', id, { locked }, before);
     return true;
   }

@@ -22,6 +22,7 @@
 ## What it does
 
 - **Lives in the menu bar.** Click the house icon and a panel drops down; click anywhere else and it is gone.
+- **Full screen in a browser too.** While the app runs, http://localhost:3017 shows the same home with the controls beside it, on this Mac only.
 - **Your floor plan in 3D.** Rooms, walls, doors, windows and furniture are built from one JSON file.
   Lamps light the scene the way they light the room; an AC that is running blows visible air.
 - **Lights.** Tap to toggle, drag across a tile to dim, open a light for brightness, white temperature and colour.
