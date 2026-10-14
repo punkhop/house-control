@@ -179,7 +179,7 @@ export async function bootEditor(root) {
       world = createWorld(canvas, valid, previewStore(valid), {
         onHover() {},
         onPick(t) {
-          if (!t) return;
+          if (!t || !KEYS[t.kind]) return; // locks, media and sensors are placed in the plan file
           const index = doc[KEYS[t.kind]].findIndex((x) => x.id === t.id);
           if (index >= 0) select({ kind: t.kind, index });
         },

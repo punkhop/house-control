@@ -307,8 +307,8 @@ export function replacePlan(old, next) {
   const plan = restoreLinks(structuredClone(next), old);
   plan.furniture = (plan.furniture || []).map((f, i) => cleanFurniture(f, `Furniture #${i}`));
   if (old.version != null && plan.version == null) plan.version = old.version;
-  const lost = [...(old.lights || []), ...(old.acs || [])].filter((d) => isLinked(d)
-    && ![...(plan.lights || []), ...(plan.acs || [])].some((n) => n.id === d.id));
+  const linkable = (p) => ['lights', 'acs', 'locks', 'media', 'sensors'].flatMap((k) => p[k] || []);
+  const lost = linkable(old).filter((d) => isLinked(d) && !linkable(plan).some((n) => n.id === d.id));
   if (lost.length) {
     fail(`The new plan drops devices linked to real hardware: ${lost.map((d) => `${d.name} (${d.id})`).join(', ')}. Keep them, with the same ids.`);
   }

@@ -292,11 +292,12 @@ final class ServiceTests: XCTestCase {
                     ["id": "ac2", "sensor": ["service": "homekit", "id": "S1"]]],
             "locks": [["id": "door", "link": ["service": "homekit", "id": "K1"]]],
             "media": [["id": "tv", "link": ["service": "homekit", "id": "M1"]]],
-            "sensors": [["id": "front-door", "type": "contact", "link": ["service": "homekit", "id": "C1"]]],
+            "sensors": [["id": "front-door", "type": "contact", "link": ["service": "homekit", "id": "C1"]],
+                        ["id": "gone", "type": "contact", "link": ["service": "homekit", "id": "C9"]]],
         ])
-        XCTAssertEqual(hub.linkedDeviceCount, 5)
+        XCTAssertEqual(hub.linkedDeviceCount, 6)
         XCTAssertTrue(hub.canPoll)
-        XCTAssertEqual(fake.watched, ["L1", "A1", "S1", "K1", "M1", "C1"])
+        XCTAssertEqual(fake.watched, ["L1", "A1", "S1", "K1", "M1", "C1", "C9"])
 
         let sent = expectation(description: "sent")
         hub.command(["id": "lamp", "kind": "light", "patch": ["on": true], "state": ["on": true]]) { reply in
@@ -325,6 +326,8 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual((update?["locks"] as? [String: [String: Any]])?["door"]?["state"] as? String, "locked")
         XCTAssertEqual((update?["media"] as? [String: [String: Any]])?["tv"]?["state"] as? String, "playing")
         XCTAssertEqual((update?["sensors"] as? [String: [String: Any]])?["front-door"]?["state"] as? String, "open")
+        // Missing from a read that worked (renamed in Home Assistant): unavailable, not its last state.
+        XCTAssertEqual((update?["sensors"] as? [String: [String: Any]])?["gone"]?["state"] as? String, "unavailable")
 
         var simulated: [String: Any]?
         hub.command(["id": "sim", "kind": "light", "patch": ["on": true]]) { simulated = $0 }

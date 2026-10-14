@@ -285,8 +285,9 @@ public final class DeviceHub {
             if link.kind == .media, let reading {
                 media[id] = reading.online ? reading.media ?? ["state": "unknown"] : ["state": "unavailable"]
             }
-            if link.kind == .contact, let reading {
-                sensors[id] = reading.online ? reading.contact ?? ["state": "unknown"] : ["state": "unavailable"]
+            // A sensor its platform no longer lists (renamed or removed) is unavailable, not stuck at its last state.
+            if link.kind == .contact, readings[link.service] != nil {
+                sensors[id] = reading?.online == true ? reading?.contact ?? ["state": "unknown"] : ["state": "unavailable"]
             }
             if link.kind == .light, let light = reading?.light, reading?.online != false { lights[id] = light }
             if link.kind == .ac {
