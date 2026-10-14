@@ -32,14 +32,11 @@ const BODIES = {
     );
     return 0.26;
   },
-  // Google Home: a fabric-wrapped base under a white cylinder with a slanted top.
+  // Google Nest Mini: a small grey fabric puck, its four lights on top.
   googleHome(g, glow) {
-    const body = cyl(0.048, 0.048, 0.12, mat('#f2f2ef', { rough: 0.35 }), 32);
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.001, 32), glow);
-    cap.position.y = 0.155;
-    cap.rotation.x = -0.25;
-    g.add(at(cyl(0.05, 0.05, 0.05, mat('#7d8086', { rough: 1 }), 32), 0, 0, 0), at(body, 0, 0.04, 0), cap);
-    return 0.17;
+    g.add(at(cyl(0.049, 0.049, 0.042, mat('#a9abae', { rough: 1 }), 32), 0, 0, 0));
+    for (const dx of [-0.018, -0.006, 0.006, 0.018]) g.add(at(cyl(0.003, 0.003, 0.002, glow, 12), dx, 0.042, 0));
+    return 0.044;
   },
   // NVIDIA Shield TV Pro: a flat black wedge-ish box with a green light.
   shield(g, glow) {

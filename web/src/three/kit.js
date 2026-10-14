@@ -124,6 +124,7 @@ const FLOORS = {
   walnut: () => planks('#94705a'),
   tile: () => tiles('#d5dade', 4, '#aab0b8'),
   stone: () => tiles('#a2a7ae', 3, '#7c828b'),
+  concrete: () => canvasTexture(64, (g, s) => { g.fillStyle = '#8f9399'; g.fillRect(0, 0, s, s); }),
 };
 
 const floorMaterials = new Map();

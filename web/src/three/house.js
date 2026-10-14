@@ -68,31 +68,36 @@ function wallSegments(config) {
 // it climbs, rising one storey (or, from below, dropping one storey into the stairwell).
 function flight(room, H) {
   const g = new THREE.Group();
-  const { climb, from, landing } = room.stairs;
+  // `landing`: flat floor at the top end; `foot`: a landing at the low end, one step up.
+  const { climb, from, landing = 0, foot = 0 } = room.stairs;
   const alongZ = climb.endsWith('z');
   const up = climb.startsWith('-') ? -1 : 1;
-  const len = (alongZ ? room.d : room.w) - landing;
+  const total = alongZ ? room.d : room.w;
+  const len = total - landing - foot;
   const wide = (alongZ ? room.w : room.d) - 0.06;
   const n = Math.max(4, Math.round(H / 0.19));
-  const tread = len / n;
+  const lead = foot > 0 ? 1 : 0;
+  const tread = len / (n - lead);
   const rise = H / n;
   const base = from === 'below' ? -H : 0;
   const start = alongZ ? room.z : room.x;
-  const lowEnd = up > 0 ? start : start + len + landing;
+  const lowEdge = up > 0 ? start : start + total;
   const wood = mat('#8a6a4a', { rough: 0.7 });
   const nose = mat('#5d4632', { rough: 0.6 });
-  for (let i = 0; i < n; i++) {
-    const top = base + rise * (i + 1);
-    const c = lowEnd + up * tread * (i + 0.5);
+  const tread3d = (c, depth, top) => {
     const h = top - (from === 'below' ? Math.max(base, top - 1.2) : 0);
-    const step = alongZ ? box(wide, h, tread, wood, { r: 0 }) : box(tread, h, wide, wood, { r: 0 });
+    const step = alongZ ? box(wide, h, depth, wood, { r: 0 }) : box(depth, h, wide, wood, { r: 0 });
     const cx = alongZ ? room.x + room.w / 2 : c;
     const cz = alongZ ? c : room.z + room.d / 2;
     at(step, cx, top - h, cz);
     const lip = alongZ ? box(wide, 0.02, 0.03, nose, { r: 0 }) : box(0.03, 0.02, wide, nose, { r: 0 });
-    at(lip, alongZ ? cx : c - up * tread / 2, top - 0.02, alongZ ? c - up * tread / 2 : cz);
+    at(lip, alongZ ? cx : c - up * depth / 2, top - 0.02, alongZ ? c - up * depth / 2 : cz);
     step.castShadow = step.receiveShadow = true;
     g.add(step, lip);
+  };
+  if (lead) tread3d(lowEdge + up * foot / 2, foot, base + rise);
+  for (let i = 0; i < n - lead; i++) {
+    tread3d(lowEdge + up * (foot + tread * (i + 0.5)), tread, base + rise * (lead + i + 1));
   }
   g.userData = { kind: 'room', id: room.partOf || room.id };
   return g;
@@ -164,8 +169,18 @@ export function buildHouse(config, camDir) {
     // Rooms are measured inside wall to inside wall: an exterior wall stands outside its
     // room's edge (so the room keeps its full taped size), an interior one straddles it.
     s.cc = exterior ? s.c - s.inside * EXT_T / 2 : s.c;
-    const a = s.a - (s.freeA ? EXT_T : 0);
-    const b = s.b + (s.freeB ? EXT_T : 0);
+    // A free end reaches just far enough to close its corner: an exterior wall wraps an
+    // outside corner by its own thickness; any other end only into the wall it meets,
+    // so nothing pokes into the next room.
+    const reach = (end, dir) => {
+      if (!exterior) return INT_T / 2;
+      const p = end + dir * EXT_T / 2;
+      const [px, pz] = s.axis === 'x' ? [p, s.cc] : [s.cc, p];
+      const inRoom = config.rooms.some((r) => r.x < px && px < r.x + r.w && r.z < pz && pz < r.z + r.d);
+      return inRoom ? INT_T / 2 : EXT_T;
+    };
+    const a = s.a - (s.freeA ? reach(s.a, -1) : 0);
+    const b = s.b + (s.freeB ? reach(s.b, 1) : 0);
     const type = s.opening?.type;
 
     into = group;

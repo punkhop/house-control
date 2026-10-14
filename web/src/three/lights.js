@@ -112,6 +112,46 @@ const fixtures = {
     };
   },
 
+  // Recessed downlights flush with the ceiling: `cans` lists each one's [x, z] offset.
+  cans(cfg, H) {
+    const y = H - 0.012;
+    const offsets = cfg.cans || [[0, 0]];
+    const trim = mat('#e9e8e4', { rough: 0.5 });
+    const parts = offsets.map(([x, z]) => at(cyl(0.085, 0.085, 0.008, trim, 28), x, H - 0.008, z));
+    const glow = offsets.map(([x, z]) => at(cyl(0.065, 0.065, 0.006, glowMaterial(), 28), x, y - 0.003, z));
+    const xs = offsets.map((o) => o[0]);
+    const zs = offsets.map((o) => o[1]);
+    const light = spot(cfg.intensity ?? 20, y - 0.02);
+    const cx = (Math.max(...xs) + Math.min(...xs)) / 2;
+    const cz = (Math.max(...zs) + Math.min(...zs)) / 2;
+    light.position.x = cx; light.position.z = cz;
+    light.target.position.set(cx, y - 1.02, cz);
+    return {
+      parts, glow, lights: [light],
+      hit: [0.4 + Math.max(...xs) - Math.min(...xs), 0.3, 0.4 + Math.max(...zs) - Math.min(...zs), y - 0.1],
+    };
+  },
+
+  // A flush-mount dome: a shallow glowing bowl tight to the ceiling.
+  dome(cfg, H) {
+    const y = H - 0.02;
+    const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.2, 32, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), glowMaterial());
+    bowl.scale.y = 0.5;
+    bowl.position.y = y;
+    return {
+      parts: [at(cyl(0.21, 0.21, 0.02, mat('#e9e8e4', { rough: 0.5 }), 32), 0, y, 0)],
+      glow: [bowl],
+      lights: [spot(cfg.intensity ?? 20, y - 0.12)],
+      hit: [0.5, 0.3, 0.5, y - 0.1],
+    };
+  },
+
+  // A switch that drives other fixtures (a vanity bar's bulbs): draws nothing itself;
+  // its members point their hit areas at it.
+  group() {
+    return { parts: [], glow: [], lights: [], hit: [0.01, 0.01, 0.01, 1.9] };
+  },
+
   floor(cfg) {
     const shade = cyl(0.14, 0.19, 0.3, glowMaterial(), 32);
     return {
@@ -151,16 +191,17 @@ const fixtures = {
   },
 
   // An LED strip: a straight run `length` long, or a bent one through `points` ([x, z]
-  // offsets, e.g. an L under two counters).
+  // offsets, e.g. an L under two counters); `runs` lists several such runs on one switch.
   strip(cfg) {
     const y = cfg.y ?? 1;
-    const pts = cfg.points || [[-(cfg.length ?? 1) / 2, 0], [(cfg.length ?? 1) / 2, 0]];
+    const runs = cfg.runs || [cfg.points || [[-(cfg.length ?? 1) / 2, 0], [(cfg.length ?? 1) / 2, 0]]];
+    const pts = runs.flat();
     const glow = [];
     const lights = [];
     let total = 0;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const [x0, z0] = pts[i];
-      const [x1, z1] = pts[i + 1];
+    for (const run of runs) for (let i = 0; i < run.length - 1; i++) {
+      const [x0, z0] = run[i];
+      const [x1, z1] = run[i + 1];
       const len = Math.hypot(x1 - x0, z1 - z0);
       total += len;
       const bar = at(box(len, 0.022, 0.022, glowMaterial(), { r: 0.008 }), (x0 + x1) / 2, y - 0.011, (z0 + z1) / 2);
@@ -326,7 +367,7 @@ export class LightUnit {
     this.hit = new THREE.Mesh(new THREE.BoxGeometry(hw, hh, hd), new THREE.MeshBasicMaterial());
     this.hit.position.y = hy;
     this.hit.visible = false;
-    this.hit.userData = { kind: 'light', id: cfg.id };
+    this.hit.userData = { kind: 'light', id: cfg.group || cfg.id };
     this.group.add(this.hit);
 
     this.level = 0;        // eased 0..1 output

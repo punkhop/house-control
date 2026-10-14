@@ -72,7 +72,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
   // floor past that renders black. Room lamps keep theirs; on a busy floor, rows of small
   // bulbs (a vanity) light without one.
   const SHADOW_BUDGET = 10;
-  const SHADOW_FIRST = ['ceiling', 'pendant', 'floor', 'softbox', 'stick', 'table', 'star', 'strip', 'spots', 'plug', 'fan', 'bulb', 'exhaust'];
+  const SHADOW_FIRST = ['ceiling', 'pendant', 'floor', 'softbox', 'stick', 'table', 'star', 'strip', 'spots', 'plug', 'fan', 'bulb', 'exhaust', 'cans', 'dome', 'group'];
   floorGroups.forEach((_, level) => {
     const casters = [...lights.values()]
       .filter((u) => u.cfg.level === level && u.lights.some((l) => l.castShadow))

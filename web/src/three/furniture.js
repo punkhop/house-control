@@ -81,8 +81,8 @@ const builders = {
     return g;
   },
 
-  armchair({ color = '#c28a5a' }) {
-    return seating(0.92, 0.88, color, 1);
+  armchair({ color = '#c28a5a', width = 0.92, depth = 0.88 }) {
+    return seating(width, depth, color, 1);
   },
 
   coffeeTable({ width = 1.1 }) {
@@ -334,6 +334,22 @@ const builders = {
     return g;
   },
 
+  // Steel garage shelving (Gorilla Rack): four corner posts, open shelves, nothing drawn on them.
+  rack({ width = 1.96, depth = 0.61, height = 1.83, shelves = 4 }) {
+    const steel = mat('#1e2024', { rough: 0.5, metal: 0.6 });
+    const board = mat('#8a7a62', { rough: 0.9 });
+    const g = new THREE.Group();
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      g.add(at(box(0.04, height, 0.04, steel, { r: 0 }), sx * (width / 2 - 0.02), 0, sz * (depth / 2 - 0.02)));
+    }
+    for (let i = 0; i < shelves; i++) {
+      const y = 0.1 + (height - 0.14) * (i / (shelves - 1));
+      g.add(at(box(width, 0.04, depth, steel, { r: 0 }), 0, y, 0));
+      g.add(at(box(width - 0.06, 0.016, depth - 0.06, board, { r: 0 }), 0, y + 0.04, 0));
+    }
+    return g;
+  },
+
   // A projector screen hung on the wall it backs onto: white surface, thin black border.
   screen({ width = 2.45, height = null, bottom = 0.7 }) {
     const h = height ?? width * 0.5625;
@@ -485,7 +501,8 @@ export function footprint(item) {
   switch (item.type) {
     case 'rug': return item.size || [2, 1.4];
     case 'sofa': return [w || 2.2, 0.95];
-    case 'armchair': return [0.92, 0.88];
+    case 'armchair': return [w || 0.92, item.depth || 0.88];
+    case 'rack': return [w || 1.96, item.depth || 0.61];
     case 'coffeeTable': return [w || 1.1, 0.58];
     case 'tv': return [w || 1.7, 0.4];
     case 'sideboard': return [w || 1.6, 0.42];

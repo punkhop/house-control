@@ -387,7 +387,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     for (const room of config.rooms) {
       if (ui.room !== 'all' && room.id !== ui.room) continue;
       if (room.level !== ui.level || room.partOf) continue;
-      const devices = [...tiles.values()].filter((t) => t.cfg.room === room.id);
+      const devices = [...tiles.values()].filter((t) => t.cfg.room === room.id && !t.cfg.group);
       if (!devices.length) continue;
       if (ui.room === 'all') nodes.push(h('div.group-label', room.name));
       devices.filter((t) => t.kind === 'lock').forEach(add);
