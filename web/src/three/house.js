@@ -100,6 +100,10 @@ function flight(room, H) {
 
 export function buildHouse(config, camDir) {
   const group = new THREE.Group();
+  // Exterior walls facing the camera drop to a curb so you can see in; which ones
+  // depends on where the camera is, so each keeps a full and a cut version.
+  const exteriors = [];
+  let into = group;
   const floors = [];
   const H = config.wallHeight;
   const Hi = Math.min(config.interiorWallHeight, H);
@@ -147,7 +151,7 @@ export function buildHouse(config, camDir) {
     const mid = (a + b) / 2;
     m.position.set(s.axis === 'x' ? mid : s.c, (y0 + y1) / 2, s.axis === 'x' ? s.c : mid);
     m.castShadow = m.receiveShadow = true;
-    group.add(m);
+    into.add(m);
     return m;
   };
 
@@ -157,14 +161,18 @@ export function buildHouse(config, camDir) {
     // Outward normal of an exterior wall points away from its room.
     const nx = s.axis === 'z' ? -s.inside : 0;
     const nz = s.axis === 'x' ? -s.inside : 0;
-    const near = exterior && nx * camDir.x + nz * camDir.z > 0.15;
     const a = s.a - (s.freeA ? EXT_T / 2 : 0);
     const b = s.b + (s.freeB ? EXT_T / 2 : 0);
     const type = s.opening?.type;
 
-    if (near) {
+    into = group;
+    if (exterior) {
+      const ext = { nx, nz, full: new THREE.Group(), low: new THREE.Group() };
+      group.add(ext.full, ext.low);
+      exteriors.push(ext);
+      into = ext.low;
       if (type !== 'door') piece(s, a, b, 0, CURB, t);
-      continue;
+      into = ext.full;
     }
     if (type === 'door' || type === 'open') continue;
 
@@ -189,5 +197,19 @@ export function buildHouse(config, camDir) {
     if (!exterior && Hi < H) piece(s, a, b, Hi, H, 0.04, blocker).receiveShadow = false;
   }
 
-  return { group, floors };
+  // Show the cut version of every exterior wall whose outside faces (dx, dz),
+  // the camera's direction seen from the house. Returns whether anything changed.
+  const cutaway = (dx, dz) => {
+    let changed = false;
+    for (const e of exteriors) {
+      const near = e.nx * dx + e.nz * dz > 0.15;
+      if (e.low.visible !== near) changed = true;
+      e.low.visible = near;
+      e.full.visible = !near;
+    }
+    return changed;
+  };
+  cutaway(camDir.x, camDir.z);
+
+  return { group, floors, cutaway };
 }

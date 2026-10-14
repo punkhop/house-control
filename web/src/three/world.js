@@ -16,9 +16,8 @@ export const STAGE_BG = '#0a0e1a';
 
 const rad = THREE.MathUtils.degToRad;
 const clamp = THREE.MathUtils.clamp;
-const ORBIT_AZ = 40;       // degrees of freedom either side of the plan's default view
-const EL_MIN = 26;
-const EL_MAX = 70;
+const EL_MIN = 14;         // spin all the way round; tilt from near the ground to near overhead
+const EL_MAX = 82;
 const ZOOM_MIN = 0.55;     // closest
 const ZOOM_MAX = 1.2;
 
@@ -58,6 +57,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     }, camDir);
     group.add(house.group, buildFurniture(config.furniture.filter((f) => f.level === i)));
     group.userData.floors = house.floors;
+    group.userData.cutaway = house.cutaway;
     scene.add(group);
     return group;
   });
@@ -223,6 +223,9 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     rig.dist += (g.dist - rig.dist) * k;
     rig.target.lerp(g.target, k);
     basis(rig.az, rig.el);
+    let cut = false;
+    for (const g of floorGroups) cut = g.userData.cutaway(-fwd.x, -fwd.z) || cut;
+    if (cut) shadowFrames = 3;
     camera.position.copy(rig.target).addScaledVector(fwd, -rig.dist);
     camera.up.set(0, 1, 0);
     camera.lookAt(rig.target);
@@ -331,7 +334,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
       const dy = ev.clientY - drag.y;
       if (!drag.moved && Math.hypot(dx, dy) > 5) { drag.moved = true; setHover(null); canvas.style.cursor = 'grabbing'; }
       if (drag.moved) {
-        rig.goal.az = clamp(drag.az - dx * 0.35, baseAz - ORBIT_AZ, baseAz + ORBIT_AZ);
+        rig.goal.az = drag.az - dx * 0.35;
         rig.goal.el = clamp(drag.el + dy * 0.3, EL_MIN, EL_MAX);
         frameGoal();
         wake();
@@ -452,7 +455,8 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
       if (on !== undefined && on !== level) { showLevel(on); shadowFrames = 3; }
       rig.focus = next;
       rig.zoom = 1;
-      rig.goal.az = baseAz + (next?.kind === 'ac' ? (WALL_SIDE[acs.get(next.id).cfg.wall] ?? 0) : 0);
+      const az = baseAz + (next?.kind === 'ac' ? (WALL_SIDE[acs.get(next.id).cfg.wall] ?? 0) : 0);
+      rig.goal.az = rig.az + ((((az - rig.az) % 360) + 540) % 360 - 180); // the short way round
       rig.goal.el = next?.kind === 'ac' ? 30 : config.camera.elevation;
       frameGoal();
       wake();
