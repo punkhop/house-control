@@ -68,6 +68,17 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     lights.set(cfg.id, unit);
     floorGroups[cfg.level].add(unit.group);
   }
+  // Each shadow takes one of the GPU's 16 texture units (WebKit and Chrome alike), and a
+  // floor past that renders black. Room lamps keep theirs; on a busy floor, rows of small
+  // bulbs (a vanity) light without one.
+  const SHADOW_BUDGET = 10;
+  const SHADOW_FIRST = ['ceiling', 'pendant', 'floor', 'table', 'strip', 'spots', 'plug'];
+  floorGroups.forEach((_, level) => {
+    const casters = [...lights.values()]
+      .filter((u) => u.cfg.level === level && u.lights.some((l) => l.castShadow))
+      .sort((a, b) => SHADOW_FIRST.indexOf(a.cfg.type) - SHADOW_FIRST.indexOf(b.cfg.type));
+    for (const unit of casters.slice(SHADOW_BUDGET)) for (const l of unit.lights) l.castShadow = false;
+  });
   const acs = new Map();
   for (const cfg of config.acs) {
     const unit = new ACUnit(cfg);
