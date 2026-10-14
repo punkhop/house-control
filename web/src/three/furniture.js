@@ -267,11 +267,11 @@ const builders = {
     );
   },
 
-  bathtub() {
+  bathtub({ width = 1.7 }) {
     return group(
-      at(box(1.7, 0.56, 0.78, mat(WHITE, { rough: 0.25 }), { r: 0.1 }), 0, 0, 0),
-      at(box(1.5, 0.02, 0.58, mat('#9fd3ec', { rough: 0.1, emissive: '#1d4f6b', emissiveIntensity: 0.25 }), { r: 0.009 }), 0, 0.545, 0),
-      at(cyl(0.014, 0.014, 0.2, mat(METAL, { rough: 0.2, metal: 0.9 }), 10), -0.74, 0.56, 0),
+      at(box(width, 0.56, 0.78, mat(WHITE, { rough: 0.25 }), { r: 0.1 }), 0, 0, 0),
+      at(box(width - 0.2, 0.02, 0.58, mat('#9fd3ec', { rough: 0.1, emissive: '#1d4f6b', emissiveIntensity: 0.25 }), { r: 0.009 }), 0, 0.545, 0),
+      at(cyl(0.014, 0.014, 0.2, mat(METAL, { rough: 0.2, metal: 0.9 }), 10), -width / 2 + 0.11, 0.56, 0),
     );
   },
 
@@ -432,7 +432,7 @@ export function footprint(item) {
     case 'dresser': return [w || 1.3, 0.45];
     case 'plant': return [0.45, 0.45];
     case 'vanity': return [w || 1, 0.5];
-    case 'bathtub': return [1.7, 0.78];
+    case 'bathtub': return [w || 1.7, 0.78];
     case 'toilet': return [0.4, 0.66];
     case 'desk': return [w || 1.4, 0.65];
     case 'wardrobe': return [w || 1.6, 0.6];

@@ -777,6 +777,6 @@ const PLAN_RULES = `Floor plan rules:
   rot 90 faces east, -90 faces west, 180 faces north. A sofa against the east wall facing a TV on the west wall: sofa rot -90, TV rot 90.
   "width" is the size along its front; depth comes from the type. Keep pieces inside their room, about 5 cm off the walls.
 - Openings: doors, windows and open gaps sit on walls, given by two end points "from"/"to" on that wall line.
-- Lights: "type" ceiling, pendant, spots, floor, table, strip, stick, softbox, star, fan or plug; "capabilities" any of brightness, temp, color (none = plain switch).
+- Lights: "type" ceiling, pendant, spots, floor, table, strip, stick, softbox, star, bulb (one wall bulb of a vanity bar), fan or plug; "capabilities" any of brightness, temp, color (none = plain switch).
 - Air conditioners hang on a wall: "wall" north/south/east/west and "pos" on that wall line.
 - Devices marked "linked": true are real hardware: keep their ids, do not remove them.`;

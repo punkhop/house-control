@@ -230,6 +230,17 @@ const fixtures = {
     };
   },
 
+  // One bulb of a vanity bar: a small globe on a wall plate, backing onto the wall at -z.
+  bulb(cfg) {
+    const y = cfg.y ?? 1.83;
+    return {
+      parts: [at(box(0.07, 0.07, 0.02, mat('#b9b4aa', { rough: 0.3, metal: 0.8 }), { r: 0.006 }), 0, y - 0.035, 0.01)],
+      glow: [at(new THREE.Mesh(new THREE.SphereGeometry(0.045, 20, 14), glowMaterial()), 0, y, 0.07)],
+      lights: [point(cfg.intensity ?? 0.5, y, { shadow: false, distance: 2.5, z: 0.12 })],
+      hit: [0.2, 0.25, 0.25, y],
+    };
+  },
+
   // A star-shaped lamp: a five-point star standing up, glowing.
   star(cfg) {
     const y = cfg.y ?? 0.5;
