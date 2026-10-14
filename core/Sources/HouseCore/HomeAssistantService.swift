@@ -182,6 +182,9 @@ public final class HomeAssistantService: DeviceService {
         case "lock":
             device = ServiceDevice(id: id, name: name, kind: .lock)
             device.detail = "lock"
+        case "media_player":
+            device = ServiceDevice(id: id, name: name, kind: .media)
+            device.detail = "media player" + ((attributes["device_class"] as? String).map { " · " + $0 } ?? "")
         default:
             return nil
         }
@@ -261,10 +264,39 @@ public final class HomeAssistantService: DeviceService {
         } else if id.hasPrefix("lock.") {
             let known = ["locked", "unlocked", "jammed", "locking", "unlocking", "open", "opening"]
             reading.lock = ["state": known.contains(value) ? (value.hasPrefix("open") ? "unlocked" : value) : "unknown"]
+        } else if id.hasPrefix("media_player.") {
+            reading.media = media(value, attributes)
         } else if id.hasPrefix("sensor."), let t = Double(value) {
             reading.temperature = (attributes["unit_of_measurement"] as? String) == "°F" ? (t - 32) * 5 / 9 : t
         }
         return reading
+    }
+
+    /// HA's media_player feature bits, in the panel's words.
+    static func mediaAbilities(_ attributes: [String: Any]) -> [String] {
+        let bits = (attributes["supported_features"] as? NSNumber)?.intValue ?? 0
+        var can: [String] = []
+        if bits & (128 | 256) != 0 { can.append("power") }
+        if bits & (1 | 16384) != 0 { can.append("playback") }
+        if bits & 4 != 0 { can.append("volume") }
+        if bits & 8 != 0 { can.append("mute") }
+        if bits & 2048 != 0, !(attributes["source_list"] as? [String] ?? []).isEmpty { can.append("source") }
+        return can
+    }
+
+    static func media(_ value: String, _ attributes: [String: Any]) -> [String: Any] {
+        let known = ["off", "on", "idle", "playing", "paused", "standby", "buffering"]
+        let state = known.contains(value) ? (value == "buffering" ? "playing" : value) : "on"
+        var out: [String: Any] = ["state": state, "on": state != "off" && state != "standby",
+                                  "can": mediaAbilities(attributes)]
+        if let v = attributes.double("volume_level") { out["volume"] = max(0, min(1, v)) }
+        if let m = attributes["is_volume_muted"] as? Bool { out["muted"] = m }
+        if let sources = attributes["source_list"] as? [String], !sources.isEmpty { out["sources"] = sources }
+        if let s = attributes["source"] as? String { out["source"] = s }
+        for (key, attribute) in [("title", "media_title"), ("artist", "media_artist"), ("app", "app_name")] {
+            if let text = attributes[attribute] as? String, !text.isEmpty { out[key] = text }
+        }
+        return out
     }
 
     struct Call {
@@ -299,6 +331,16 @@ public final class HomeAssistantService: DeviceService {
         if domain == "lock" {
             guard let locked = patch["locked"] as? Bool else { return [] }
             return [call(locked ? "lock" : "unlock")]
+        }
+        if domain == "media_player" {
+            if patch["on"] as? Bool == false { return [call("turn_off")] }
+            var out: [Call] = []
+            if patch["on"] as? Bool == true { out.append(call("turn_on")) }
+            if let source = patch["source"] as? String { out.append(call("select_source", ["source": source])) }
+            if let playing = patch["playing"] as? Bool { out.append(call(playing ? "media_play" : "media_pause")) }
+            if let v = patch["volume"] as? Double { out.append(call("volume_set", ["volume_level": max(0, min(1, v))])) }
+            if let muted = patch["muted"] as? Bool { out.append(call("volume_mute", ["is_volume_muted": muted])) }
+            return out
         }
         guard domain == "climate" else { return [] }
 

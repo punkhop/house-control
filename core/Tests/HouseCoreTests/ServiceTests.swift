@@ -46,7 +46,9 @@ final class ServiceTests: XCTestCase {
             "entity_id": "sensor.outside", "state": "15.6", "attributes": ["unit_of_measurement": "°C"],
         ])?.kind, .sensor)
         XCTAssertNil(HomeAssistantService.device(from: ["entity_id": "sensor.power", "state": "3", "attributes": ["unit_of_measurement": "W"]]))
-        XCTAssertNil(HomeAssistantService.device(from: ["entity_id": "media_player.tv", "state": "on", "attributes": [:]]))
+        let tv = HomeAssistantService.device(from: ["entity_id": "media_player.tv", "state": "on", "attributes": ["device_class": "tv"]])
+        XCTAssertEqual(tv?.kind, .media)
+        XCTAssertEqual(tv?.detail, "media player · tv")
         let lock = HomeAssistantService.device(from: ["entity_id": "lock.front_door", "state": "unavailable", "attributes": [:]])
         XCTAssertEqual(lock?.kind, .lock)
         XCTAssertEqual(lock?.online, false)
@@ -66,6 +68,45 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(lock.first?.data["entity_id"] as? String, "lock.door")
         XCTAssertEqual(HomeAssistantService.calls(for: "lock.door", patch: ["locked": false], state: [:], fans: [:], modes: [:]).map(\.service), ["unlock"])
         XCTAssertTrue(HomeAssistantService.calls(for: "lock.door", patch: ["on": true], state: [:], fans: [:], modes: [:]).isEmpty)
+    }
+
+    func testHomeAssistantReadsAndSendsMediaPlayers() {
+        // The Denon AVR-S760H as Home Assistant reports it: power, volume, mute and inputs, no pause.
+        let receiver = HomeAssistantService.reading(from: ["entity_id": "media_player.denon", "state": "on", "attributes": [
+            "supported_features": 69004, "volume_level": 0.42, "is_volume_muted": false,
+            "source": "SHIELD", "source_list": ["SHIELD", "TV Audio"],
+        ]]).media
+        XCTAssertEqual(receiver?["on"] as? Bool, true)
+        XCTAssertEqual(receiver?["can"] as? [String], ["power", "volume", "mute", "source"])
+        XCTAssertEqual(receiver?["volume"] as? Double, 0.42)
+        XCTAssertEqual(receiver?["source"] as? String, "SHIELD")
+        XCTAssertEqual(receiver?["sources"] as? [String], ["SHIELD", "TV Audio"])
+
+        let speaker = HomeAssistantService.reading(from: ["entity_id": "media_player.kitchen", "state": "playing", "attributes": [
+            "supported_features": 152461, "media_title": "Halo", "media_artist": "Beyoncé", "app_name": "Spotify",
+        ]]).media
+        XCTAssertEqual(speaker?["state"] as? String, "playing")
+        XCTAssertEqual(speaker?["can"] as? [String], ["power", "playback", "volume", "mute"])
+        XCTAssertEqual(speaker?["title"] as? String, "Halo")
+        XCTAssertEqual(speaker?["artist"] as? String, "Beyoncé")
+        XCTAssertEqual(speaker?["app"] as? String, "Spotify")
+        XCTAssertEqual(HomeAssistantService.reading(from: ["entity_id": "media_player.tv", "state": "standby"]).media?["on"] as? Bool, false)
+        XCTAssertFalse(HomeAssistantService.reading(from: ["entity_id": "media_player.tv", "state": "unavailable"]).online)
+
+        func services(_ patch: [String: Any]) -> [String] {
+            HomeAssistantService.calls(for: "media_player.tv", patch: patch, state: [:], fans: [:], modes: [:]).map(\.service)
+        }
+        XCTAssertEqual(services(["on": false, "volume": 0.5]), ["turn_off"])
+        XCTAssertEqual(services(["on": true, "source": "SHIELD"]), ["turn_on", "select_source"])
+        XCTAssertEqual(services(["playing": false]), ["media_pause"])
+        XCTAssertEqual(services(["playing": true]), ["media_play"])
+        XCTAssertEqual(services(["muted": true]), ["volume_mute"])
+        let volume = HomeAssistantService.calls(for: "media_player.tv", patch: ["volume": 0.3], state: [:], fans: [:], modes: [:])
+        XCTAssertEqual(volume.first?.service, "volume_set")
+        XCTAssertEqual(volume.first?.data["volume_level"] as? Double, 0.3)
+        XCTAssertEqual(volume.first?.data["entity_id"] as? String, "media_player.tv")
+        let source = HomeAssistantService.calls(for: "media_player.tv", patch: ["source": "SHIELD"], state: [:], fans: [:], modes: [:])
+        XCTAssertEqual(source.first?.data["source"] as? String, "SHIELD")
     }
 
     func testHomeAssistantReadsLightState() {
@@ -232,10 +273,11 @@ final class ServiceTests: XCTestCase {
             "acs": [["id": "ac", "link": ["service": "homekit", "id": "A1"], "sensor": ["service": "homekit", "id": "S1"]],
                     ["id": "ac2", "sensor": ["service": "homekit", "id": "S1"]]],
             "locks": [["id": "door", "link": ["service": "homekit", "id": "K1"]]],
+            "media": [["id": "tv", "link": ["service": "homekit", "id": "M1"]]],
         ])
-        XCTAssertEqual(hub.linkedDeviceCount, 3)
+        XCTAssertEqual(hub.linkedDeviceCount, 4)
         XCTAssertTrue(hub.canPoll)
-        XCTAssertEqual(fake.watched, ["L1", "A1", "S1", "K1"])
+        XCTAssertEqual(fake.watched, ["L1", "A1", "S1", "K1", "M1"])
 
         let sent = expectation(description: "sent")
         hub.command(["id": "lamp", "kind": "light", "patch": ["on": true], "state": ["on": true]]) { reply in
@@ -262,6 +304,7 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(acs?["ac2"]?["roomTemp"] as? Double, 19.5) // a simulated AC with a real sensor
         XCTAssertNotNil((update?["features"] as? [String: Any])?["ac"])
         XCTAssertEqual((update?["locks"] as? [String: [String: Any]])?["door"]?["state"] as? String, "locked")
+        XCTAssertEqual((update?["media"] as? [String: [String: Any]])?["tv"]?["state"] as? String, "playing")
 
         var simulated: [String: Any]?
         hub.command(["id": "sim", "kind": "light", "patch": ["on": true]]) { simulated = $0 }
@@ -419,6 +462,7 @@ private final class FakeService: DeviceService {
             "A1": DeviceReading(ac: ["on": true, "target": 23.0, "roomTemp": 26.0], features: ["modes": ["cool"]]),
             "S1": DeviceReading(temperature: 19.5),
             "K1": DeviceReading(lock: ["state": lockState]),
+            "M1": DeviceReading(media: ["state": "playing", "on": true]),
         ].filter { ids.contains($0.key) }
     }
     func send(kind: DeviceKind, id: String, patch: [String: Any], state: [String: Any]) async throws {
