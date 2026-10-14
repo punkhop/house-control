@@ -10,6 +10,7 @@ import { MEDIA_COLORS, mediaIsOn } from '../three/media.js';
 import { SENSOR_COLORS } from '../three/sensor.js';
 import { AC_SWINGS } from '../store.js';
 import { haptic, isPhone } from '../bridge.js';
+import { temp, tempUnit } from '../units.js';
 
 const MODE_LABEL = { cool: 'Cool', heat: 'Heat', dry: 'Dry', fan: 'Fan', auto: 'Auto' };
 const FAN_LABEL = { auto: 'Auto', low: 'Low', medium: 'Medium', high: 'High', turbo: 'Turbo' };
@@ -73,7 +74,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   const tooltip = h('div.tooltip');
   const homeSub = h('div.home-sub');
   const power = h('button.round.power', { title: 'Everything on / off', 'aria-label': 'Toggle everything', onclick: toggleEverything }, icon('power', 21, 2.2));
-  const gear = h('button.round', { title: 'Floor plan', 'aria-label': 'Floor plan menu', onclick: () => onMenu(gear) }, icon('settings', 17));
+  const gear = h('button.round.plan-menu', { title: 'Floor plan', 'aria-label': 'Floor plan menu', onclick: () => onMenu(gear) }, icon('settings', 17));
   // Shown while an AI assistant has a link to this home (AI Access on the Mac).
   const aiBadge = h('button.ai-badge', { hidden: true, title: 'An AI assistant has access — click to manage', 'aria-label': 'AI access',
     onclick: () => onMenu(aiBadge, 'agent') }, icon('sparkles', 13, 2.2), h('span', 'AI'));
@@ -279,8 +280,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         el.classList.toggle('on', s.on);
         el.style.setProperty('--c', MODE_COLORS[s.mode]);
         if (shownMode !== s.mode) { bubble.replaceChildren(icon(s.mode, 19)); shownMode = s.mode; }
-        value.textContent = `${s.target}°`;
-        sub.textContent = `${s.on ? MODE_LABEL[s.mode] : 'Off'} · Room ${s.roomTemp.toFixed(isPhone ? 0 : 1)}°`;
+        value.textContent = `${temp(s.target)}°`;
+        sub.textContent = `${s.on ? MODE_LABEL[s.mode] : 'Off'} · Room ${temp(s.roomTemp, isPhone ? 0 : 1)}°`;
       },
     };
   }
@@ -470,11 +471,11 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const set = (patch) => store.setAC(id, patch);
     const sub = h('div.sheet-sub');
     const powerBtn = h('button.round.power', { 'aria-label': 'Power', onclick: () => { haptic('medium'); set({ on: !s().on }); } }, icon('power', 21, 2.2));
-    const big = bigNumber('°C');
+    const big = bigNumber(tempUnit());
     const eco = h('button.toggle-chip', { onclick: () => { haptic('light'); set({ eco: !s().eco }); } }, icon('leaf', 17), 'Eco Mode', h('span.switch'));
     const slider = createSlider({
       min: cfg.min, max: cfg.max, value: s().target, gradient: TEMP_GRADIENT,
-      labels: [`${cfg.min}°`, `${cfg.max}°`],
+      labels: [`${temp(cfg.min)}°`, `${temp(cfg.max)}°`],
       onInput: (v) => set({ on: true, target: v }),
     });
 
@@ -532,9 +533,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         eco.hidden = !f.eco;
         options.style.gridTemplateColumns = `repeat(${shown.filter(([, on]) => on).length || 1}, 1fr)`;
         powerBtn.classList.toggle('on', a.on);
-        sub.replaceChildren(icon('thermo', 14), 'Room ', h('b', `${a.roomTemp.toFixed(1)}°C`),
+        sub.replaceChildren(icon('thermo', 14), 'Room ', h('b', `${temp(a.roomTemp, 1)}${tempUnit()}`),
           h('span.live', { style: { background: a.on ? MODE_COLORS[a.mode] : 'rgba(255,255,255,.25)', boxShadow: a.on ? `0 0 8px ${MODE_COLORS[a.mode]}` : 'none' } }));
-        big.set(a.target, !a.on);
+        big.set(temp(a.target), !a.on);
         slider.set(a.target);
         eco.classList.toggle('on', a.eco);
         mode.update(); fan.update(); swing.update();
@@ -697,7 +698,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     } else {
       const cfg = store.acCfg.get(hit.id);
       const s = state.acs[hit.id];
-      name = cfg.name; status = s.on ? `${MODE_LABEL[s.mode]} ${s.target}°` : 'Off'; on = s.on; color = MODE_COLORS[s.mode];
+      name = cfg.name; status = s.on ? `${MODE_LABEL[s.mode]} ${temp(s.target)}°` : 'Off'; on = s.on; color = MODE_COLORS[s.mode];
     }
     tooltip.replaceChildren(h('i.dot'), name, h('span', status));
     tooltip.classList.toggle('on', on);
@@ -740,7 +741,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     homeSub.replaceChildren(
       h('span.live', { style: anyOn ? {} : { background: 'rgba(255,255,255,.25)', boxShadow: 'none' } }),
       h('b', onCount ? `${onCount} of ${lights.length}` : 'No'), ' lights on',
-      acsOn.length ? ` · AC ${acsOn[0].target}°` : '');
+      acsOn.length ? ` · AC ${temp(acsOn[0].target)}°` : '');
     power.classList.toggle('on', anyOn);
 
     for (const [id, b] of sceneButtons) b.classList.toggle('active', state.scene === id);

@@ -73,6 +73,7 @@ Heights (`y`, `sill`, `head`) are metres above the floor. Angles are degrees.
 | `wallHeight` | `2.6` | Height of the outer walls |
 | `interiorWallHeight` | `1.25` | How much of the inner walls is drawn, so they do not hide the rooms |
 | `outdoorTemp` | `27` | Used to estimate the room temperature of an AC that has no sensor |
+| `units` | the Mac's region | `"imperial"` shows °F, `"metric"` °C. Temperatures in the file are always °C |
 | `camera.azimuth`, `camera.elevation` | `34`, `47` | Default view. Walls facing the camera are cut away, so the azimuth decides which side is open |
 
 ## `rooms`

@@ -11,6 +11,7 @@ import { icon } from '../ui/icons.js';
 import { lightColor } from '../three/lights.js';
 import { MODE_COLORS } from '../three/ac.js';
 import { post, incoming, isNative } from '../bridge.js';
+import { temp } from '../units.js';
 
 const MODE_LABEL = { cool: 'Cool', heat: 'Heat', dry: 'Dry', fan: 'Fan', auto: 'Auto' };
 const NAVY = new THREE.Color('#17274f');
@@ -94,8 +95,8 @@ export async function bootIsland(root) {
       el.classList.toggle('on', s.on);
       el.style.setProperty('--c', MODE_COLORS[s.mode]);
       if (shownMode !== s.mode) { bubble.replaceChildren(icon(s.mode, 15)); shownMode = s.mode; }
-      value.textContent = `${s.target}°`;
-      sub.textContent = `${s.on ? MODE_LABEL[s.mode] : 'Off'} · ${s.roomTemp.toFixed(0)}° inside`;
+      value.textContent = `${temp(s.target)}°`;
+      sub.textContent = `${s.on ? MODE_LABEL[s.mode] : 'Off'} · ${temp(s.roomTemp)}° inside`;
     });
   }
 
@@ -217,12 +218,12 @@ export async function bootIsland(root) {
       earRight.replaceChildren(h('span.ear-text.strong', peek.right));
     } else {
       earLeft.replaceChildren(...(onCount ? plainEar('home', String(onCount), '#ffb46b') : acOn ? plainEar('home', null, '#8fa3c7') : []));
-      earRight.replaceChildren(...(acOn ? plainEar(acOn.mode, `${acOn.target}°`, MODE_COLORS[acOn.mode]) : []));
+      earRight.replaceChildren(...(acOn ? plainEar(acOn.mode, `${temp(acOn.target)}°`, MODE_COLORS[acOn.mode]) : []));
     }
 
     status.replaceChildren(
       h('i.dot', { style: onCount || acOn ? {} : { background: 'rgba(255,255,255,.25)', boxShadow: 'none' } }),
-      h('b', onCount ? `${onCount} of ${lights.length}` : 'No'), ' lights on', acOn ? ` · ${acOn.target}°` : '');
+      h('b', onCount ? `${onCount} of ${lights.length}` : 'No'), ' lights on', acOn ? ` · ${temp(acOn.target)}°` : '');
     power.classList.toggle('on', onCount > 0 || Boolean(acOn));
     for (const [id, b] of sceneButtons) b.classList.toggle('active', state.scene === id);
     for (const row of rows) row();
@@ -286,7 +287,7 @@ export async function bootIsland(root) {
     });
     if (acs.length === 1 && !lights.length) {
       const [cfg, s] = [acs[0], state.acs[acs[0].id]];
-      return { left: ear(s.mode, cfg.name, s.on ? MODE_COLORS[s.mode] : '#8fa3c7'), right: s.on ? `${s.target}°` : 'Off' };
+      return { left: ear(s.mode, cfg.name, s.on ? MODE_COLORS[s.mode] : '#8fa3c7'), right: s.on ? `${temp(s.target)}°` : 'Off' };
     }
     if (lights.length === 1 && !acs.length) {
       const [cfg, s] = [lights[0], state.lights[lights[0].id]];

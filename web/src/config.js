@@ -1,3 +1,5 @@
+import { setUnits } from './units.js';
+
 // Loads and normalises a floor plan ("home.json"). Everything the 3D scene and the UI
 // know about the apartment comes from this one document, so swapping the file swaps the home.
 
@@ -57,6 +59,7 @@ const isPoint = (p) => Array.isArray(p) && p.length === 2 && p.every(Number.isFi
 export function normalize(raw) {
   need(raw && typeof raw === 'object', 'Plan must be a JSON object');
   need(Array.isArray(raw.rooms) && raw.rooms.length > 0, 'Plan needs at least one room in "rooms"');
+  setUnits(raw.units);
 
   const ids = new Set();
   const unique = (id, what) => {
