@@ -54,7 +54,7 @@ final class DeviceTests: XCTestCase {
         hub.setLinks(from: ["lights": [["id": "a", "tuya": ["deviceId": "dev1"]], ["id": "b"], ["id": "c", "tuya": ["deviceId": ""]]],
                             "acs": [["id": "ac", "tuya": ["deviceId": "dev2", "sensorId": "s1"]]]])
         XCTAssertEqual(hub.linkedDeviceCount, 2)
-        XCTAssertFalse(hub.isConnected)
+        XCTAssertTrue(hub.isConnected) // Govee talks over the LAN with no login, so it is always connected
         XCTAssertFalse(hub.canPoll)
         var reply: [String: Any]?
         hub.command(["id": "a", "kind": "light", "patch": ["on": true]]) { reply = $0 }
