@@ -1,7 +1,7 @@
 // Loads and normalises a floor plan ("home.json"). Everything the 3D scene and the UI
 // know about the apartment comes from this one document, so swapping the file swaps the home.
 
-const LIGHT_TYPES = ['ceiling', 'pendant', 'spots', 'floor', 'table', 'strip'];
+const LIGHT_TYPES = ['ceiling', 'pendant', 'spots', 'floor', 'table', 'strip', 'plug'];
 const WALLS = ['north', 'south', 'east', 'west'];
 
 export class ConfigError extends Error {}
@@ -65,20 +65,34 @@ export function normalize(raw) {
     ids.add(id);
   };
 
+  // A plan with several floors lists them in `levels`; every room, opening and piece of
+  // furniture then says which one it stands on with `level` (an index, 0 = the first).
+  const levels = (Array.isArray(raw.levels) && raw.levels.length ? raw.levels : [{ name: raw.name || 'Home' }])
+    .map((l, i) => ({ id: l.id || `level-${i}`, name: l.name || `Floor ${i + 1}` }));
+  const levelOf = (o, what) => {
+    const n = o.level ?? 0;
+    need(Number.isInteger(n) && n >= 0 && n < levels.length, `${what} is on unknown level ${n}`);
+    return n;
+  };
+
   const rooms = raw.rooms.map((r) => {
     unique(r.id, 'A room');
     need(Array.isArray(r.rect) && r.rect.length === 4 && r.rect.every(Number.isFinite),
       `Room "${r.id}" needs "rect": [x, z, width, depth]`);
     const [x, z, w, d] = r.rect;
     need(w > 0 && d > 0, `Room "${r.id}" has an empty rect`);
-    return { id: r.id, name: r.name || r.id, x, z, w, d, floor: r.floor || 'oak' };
+    return { id: r.id, name: r.name || r.id, x, z, w, d, floor: r.floor || 'oak', level: levelOf(r, `Room "${r.id}"`),
+      // A room that is not a rectangle is drawn as several: the extra rects name the room they belong to.
+      partOf: r.partOf || null };
   });
+  for (const r of rooms) need(!r.partOf || rooms.some((o) => o.id === r.partOf && !o.partOf), `Room "${r.id}" is part of unknown room "${r.partOf}"`);
   const roomIds = new Set(rooms.map((r) => r.id));
+  const roomLevel = new Map(rooms.map((r) => [r.id, r.level]));
 
   const openings = (raw.openings || []).map((o, i) => {
     need(isPoint(o.from) && isPoint(o.to), `Opening #${i + 1} needs "from" and "to" points`);
     need(o.from[0] === o.to[0] || o.from[1] === o.to[1], `Opening #${i + 1} must be axis-aligned`);
-    return { type: o.type || 'door', from: o.from, to: o.to, sill: o.sill ?? 0.85, head: o.head ?? 2.1 };
+    return { type: o.type || 'door', from: o.from, to: o.to, sill: o.sill ?? 0.85, head: o.head ?? 2.1, level: levelOf(o, `Opening #${i + 1}`) };
   });
 
   const lights = (raw.lights || []).map((l) => {
@@ -89,6 +103,7 @@ export function normalize(raw) {
     return {
       ...l,
       name: l.name || l.id,
+      level: roomLevel.get(l.room),
       rot: l.rot || 0,
       capabilities: l.capabilities || [], // plain smart plugs: on/off only
     };
@@ -99,7 +114,7 @@ export function normalize(raw) {
     need(roomIds.has(a.room), `AC "${a.id}" refers to unknown room "${a.room}"`);
     need(isPoint(a.pos), `AC "${a.id}" needs "pos": [x, z]`);
     need(WALLS.includes(a.wall), `AC "${a.id}" needs "wall": one of ${WALLS.join(', ')}`);
-    return { ...a, name: a.name || a.id, y: a.y ?? 2.2, min: a.min ?? 16, max: a.max ?? 30 };
+    return { ...a, name: a.name || a.id, level: roomLevel.get(a.room), y: a.y ?? 2.2, min: a.min ?? 16, max: a.max ?? 30 };
   });
 
   const scenes = (raw.scenes || []).map((s) => {
@@ -107,10 +122,17 @@ export function normalize(raw) {
     return { id: s.id, name: s.name || s.id, icon: s.icon || 'sun', lights: s.lights || {}, acs: s.acs || {} };
   });
 
-  const minX = Math.min(...rooms.map((r) => r.x));
-  const minZ = Math.min(...rooms.map((r) => r.z));
-  const maxX = Math.max(...rooms.map((r) => r.x + r.w));
-  const maxZ = Math.max(...rooms.map((r) => r.z + r.d));
+  const boundsOf = (list) => ({
+    minX: Math.min(...list.map((r) => r.x)),
+    minZ: Math.min(...list.map((r) => r.z)),
+    maxX: Math.max(...list.map((r) => r.x + r.w)),
+    maxZ: Math.max(...list.map((r) => r.z + r.d)),
+  });
+  levels.forEach((l, i) => {
+    const own = rooms.filter((r) => r.level === i);
+    need(own.length, `Level "${l.name}" has no rooms`);
+    l.bounds = boundsOf(own);
+  });
 
   return {
     name: raw.name || 'Home',
@@ -120,10 +142,11 @@ export function normalize(raw) {
     outdoorTemp: raw.outdoorTemp ?? 27,
     rooms,
     openings,
-    furniture: raw.furniture || [],
+    furniture: (raw.furniture || []).map((f) => ({ ...f, level: f.level ?? 0 })),
     lights,
     acs,
     scenes,
-    bounds: { minX, minZ, maxX, maxZ },
+    levels,
+    bounds: boundsOf(rooms),
   };
 }

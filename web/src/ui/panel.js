@@ -33,7 +33,9 @@ function acTemperatureColor(target, cfg) {
 
 export function createPanel(root, config, store, { onFocus, onMenu }) {
   const { state } = store;
-  const ui = { room: 'all', sheet: null };
+  const ui = { room: 'all', sheet: null, level: 0 };
+  const multiLevel = config.levels.length > 1;
+  const roomLevel = new Map(config.rooms.map((r) => [r.id, r.level]));
   let world = null;
   const roomName = new Map(config.rooms.map((r) => [r.id, r.name]));
 
@@ -49,11 +51,12 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     onclick: () => onMenu(aiBadge, 'agent') }, icon('sparkles', 13, 2.2), h('span', 'AI'));
 
   const scenes = h('div.scenes');
+  const levelsRow = h('div.rooms.levels');
   const rooms = h('div.rooms');
   const listTitle = h('span.title');
   const grid = h('div.grid');
   const panel = h('section.panel',
-    scenes, rooms,
+    scenes, ...(multiLevel ? [levelsRow] : []), rooms,
     h('div.list-head', listTitle,
       h('button.pill', { onclick: () => bulk(true) }, 'All on'),
       h('button.pill', { onclick: () => bulk(false) }, 'All off')),
@@ -83,10 +86,28 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   }
   if (!config.scenes.length) scenes.style.display = 'none';
 
+  /* ---------- floors ---------- */
+
+  const levelButtons = config.levels.map((lv, i) => {
+    const count = h('span.count.zero', '0');
+    const b = h('button.room', { onclick: () => { haptic('tick'); selectLevel(i); } }, lv.name, count);
+    levelsRow.append(b);
+    return { b, count };
+  });
+
+  function selectLevel(n, { focus = true } = {}) {
+    ui.level = n;
+    ui.room = 'all';
+    world?.setLevel(n);
+    layoutTiles();
+    update();
+    if (focus) onFocus(null);
+  }
+
   /* ---------- rooms ---------- */
 
   const roomButtons = new Map();
-  for (const r of [{ id: 'all', name: 'All' }, ...config.rooms]) {
+  for (const r of [{ id: 'all', name: 'All' }, ...config.rooms.filter((x) => !x.partOf)]) {
     const count = h('span.count.zero', '0');
     const b = h('button.room', { onclick: () => { haptic('tick'); selectRoom(r.id); } }, r.name, count);
     roomButtons.set(r.id, { b, count });
@@ -95,6 +116,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   function selectRoom(id) {
     if (ui.room === id) id = 'all';
+    if (id !== 'all' && roomLevel.get(id) !== ui.level) selectLevel(roomLevel.get(id), { focus: false });
     ui.room = id;
     layoutTiles();
     update();
@@ -103,13 +125,13 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   }
 
   function inScope(cfg) {
-    return ui.room === 'all' || cfg.room === ui.room;
+    return ui.room === 'all' ? cfg.level === ui.level : cfg.room === ui.room;
   }
 
   function bulk(on) {
     haptic('medium');
-    if (ui.room === 'all') { store.setAllLights(on); return; }
-    for (const l of config.lights) if (l.room === ui.room) store.setLight(l.id, { on });
+    if (ui.room === 'all' && !multiLevel) { store.setAllLights(on); return; }
+    for (const l of config.lights) if (inScope(l)) store.setLight(l.id, { on });
   }
 
   function toggleEverything() {
@@ -250,6 +272,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const add = (t) => { t.el.style.setProperty('--i', i++); nodes.push(t.el); };
     for (const room of config.rooms) {
       if (ui.room !== 'all' && room.id !== ui.room) continue;
+      if (room.level !== ui.level || room.partOf) continue;
       const devices = [...tiles.values()].filter((t) => t.cfg.room === room.id);
       if (!devices.length) continue;
       if (ui.room === 'all') nodes.push(h('div.group-label', room.name));
@@ -278,7 +301,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     sheet.inert = false;
     card.classList.add('detail');
     hideTooltip();
-    onFocus(target.kind === 'ac' ? target : { kind: 'room', id: store.lightCfg.get(target.id).room });
+    const cfg = target.kind === 'ac' ? store.acCfg.get(target.id) : store.lightCfg.get(target.id);
+    if (cfg.level !== ui.level) selectLevel(cfg.level, { focus: false });
+    onFocus(target.kind === 'ac' ? target : { kind: 'room', id: cfg.room });
     update();
   }
 
@@ -528,16 +553,23 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
     for (const [id, b] of sceneButtons) b.classList.toggle('active', state.scene === id);
 
+    levelButtons.forEach(({ b, count }, i) => {
+      b.classList.toggle('active', ui.level === i);
+      const n = config.lights.filter((l) => l.level === i && state.lights[l.id].on).length;
+      count.textContent = n;
+      count.classList.toggle('zero', n === 0);
+    });
     for (const [id, { b, count }] of roomButtons) {
+      b.hidden = id !== 'all' && roomLevel.get(id) !== ui.level;
       b.classList.toggle('active', ui.room === id);
-      const n = config.lights.filter((l) => (id === 'all' || l.room === id) && state.lights[l.id].on).length;
+      const n = config.lights.filter((l) => (id === 'all' ? l.level === ui.level : l.room === id) && state.lights[l.id].on).length;
       count.textContent = n;
       count.classList.toggle('zero', n === 0 || id === 'all');
     }
 
     const scoped = config.lights.filter(inScope);
     const scopedOn = scoped.filter((l) => state.lights[l.id].on).length;
-    listTitle.replaceChildren(h('b', ui.room === 'all' ? 'Whole home' : roomName.get(ui.room)), ` · ${scopedOn} of ${scoped.length} on`);
+    listTitle.replaceChildren(h('b', ui.room === 'all' ? (multiLevel ? config.levels[ui.level].name : 'Whole home') : roomName.get(ui.room)), ` · ${scopedOn} of ${scoped.length} on`);
 
     for (const t of tiles.values()) t.update();
     sheetView?.update();
@@ -561,6 +593,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     openSheet,
     closeSheet,
     selectRoom,
+    selectLevel,
     toggleLight,
     get room() { return ui.room; },
     setNotch(x) { card.style.setProperty('--notch-x', `${x}px`); },

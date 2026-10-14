@@ -79,7 +79,7 @@ export function buildHouse(config, camDir) {
 
   for (const room of config.rooms) {
     const floor = floorMesh(room, room.floor);
-    floor.userData = { kind: 'room', id: room.id };
+    floor.userData = { kind: 'room', id: room.partOf || room.id };
     floors.push(floor);
     group.add(floor);
   }

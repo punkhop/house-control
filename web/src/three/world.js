@@ -33,8 +33,10 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
 
   const camera = new THREE.PerspectiveCamera(24, 1, 0.5, 120);
 
-  const { minX, minZ, maxX, maxZ } = config.bounds;
+  // One floor is on show at a time; every floor shares the same x/z space.
+  let level = 0;
   const H = config.wallHeight;
+  const { minX, minZ, maxX, maxZ } = config.bounds;
   const center = new THREE.Vector3((minX + maxX) / 2, 0, (minZ + maxZ) / 2);
   const span = Math.max(maxX - minX, maxZ - minZ);
 
@@ -43,23 +45,43 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
 
   /* ---------- content ---------- */
 
-  const house = buildHouse(config, camDir);
-  scene.add(house.group);
-  scene.add(buildFurniture(config.furniture));
+  const floorGroups = config.levels.map((lv, i) => {
+    const group = new THREE.Group();
+    const house = buildHouse({
+      ...config,
+      rooms: config.rooms.filter((r) => r.level === i),
+      openings: config.openings.filter((o) => o.level === i),
+      bounds: lv.bounds,
+    }, camDir);
+    group.add(house.group, buildFurniture(config.furniture.filter((f) => f.level === i)));
+    group.userData.floors = house.floors;
+    scene.add(group);
+    return group;
+  });
 
   const lights = new Map();
   for (const cfg of config.lights) {
     const unit = new LightUnit(cfg, H);
     lights.set(cfg.id, unit);
-    scene.add(unit.group);
+    floorGroups[cfg.level].add(unit.group);
   }
   const acs = new Map();
   for (const cfg of config.acs) {
     const unit = new ACUnit(cfg);
     acs.set(cfg.id, unit);
-    scene.add(unit.group);
+    floorGroups[cfg.level].add(unit.group);
   }
-  const hitTargets = [...[...lights.values()].map((u) => u.hit), ...[...acs.values()].map((u) => u.hit), ...house.floors];
+  let hitTargets = [];
+  function showLevel(n) {
+    level = n;
+    floorGroups.forEach((g, i) => { g.visible = i === n; });
+    hitTargets = [
+      ...[...lights.values()].filter((u) => u.cfg.level === n).map((u) => u.hit),
+      ...[...acs.values()].filter((u) => u.cfg.level === n).map((u) => u.hit),
+      ...floorGroups[n].userData.floors,
+    ];
+  }
+  showLevel(0);
 
   // Night-time ambience: enough to read the model with every lamp off.
   scene.add(new THREE.HemisphereLight(0x8ea6ff, 0x0b0e17, 0.42));
@@ -134,8 +156,11 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     let box;
     let fill = 0.96;
     if (f?.kind === 'room') {
-      const r = config.rooms.find((x) => x.id === f.id);
-      box = new THREE.Box3(new THREE.Vector3(r.x, 0, r.z), new THREE.Vector3(r.x + r.w, H * 0.75, r.z + r.d));
+      box = new THREE.Box3();
+      for (const r of config.rooms) {
+        if (r.id !== f.id && r.partOf !== f.id) continue;
+        box.union(new THREE.Box3(new THREE.Vector3(r.x, 0, r.z), new THREE.Vector3(r.x + r.w, H * 0.75, r.z + r.d)));
+      }
       fill = 0.84;
     } else if (f?.kind === 'ac') {
       const unit = acs.get(f.id);
@@ -145,7 +170,8 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
         new THREE.Vector3(p.x + out.x * 1.3, 1.25, p.z + out.z * 1.3), new THREE.Vector3(3.6, 2.6, 3.6));
       fill = 0.92;
     } else {
-      box = new THREE.Box3(new THREE.Vector3(minX, 0, minZ), new THREE.Vector3(maxX, H * 0.8, maxZ));
+      const b = config.levels[level].bounds;
+      box = new THREE.Box3(new THREE.Vector3(b.minX, 0, b.minZ), new THREE.Vector3(b.maxX, H * 0.8, b.maxZ));
     }
     const { dist, center: c } = fitDistance(box, rig.goal.az, rig.goal.el, fill);
     rig.goal.dist = dist * rig.zoom;
@@ -181,8 +207,8 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
 
   const unsubscribe = store.on((change) => {
     if (change.type === 'tick') return;
-    if (change.type === 'light') lights.get(change.id).apply(store.state.lights[change.id]);
-    else if (change.type === 'ac') acs.get(change.id).apply(store.state.acs[change.id]);
+    if (change.type === 'light') lights.get(change.id)?.apply(store.state.lights[change.id]);
+    else if (change.type === 'ac') acs.get(change.id)?.apply(store.state.acs[change.id]);
     else syncAll();
     wake();
   });
@@ -356,7 +382,24 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     setInsets(top, bottom) { topInset = top; bottomInset = bottom; resize(); },
     resize,
 
+    get level() { return level; },
+
+    setLevel(n) {
+      if (n === level || !floorGroups[n]) return;
+      showLevel(n);
+      setHover(null);
+      shadowFrames = 3;
+      if (rig.focus) rig.focus = null;
+      frameGoal();
+      wake(3);
+    },
+
     focus(next) {
+      // Focusing something on another floor brings that floor up first.
+      const on = next?.kind === 'room' ? config.rooms.find((r) => r.id === next.id)?.level
+        : next?.kind === 'ac' ? acs.get(next.id)?.cfg.level
+          : next?.kind === 'light' ? lights.get(next.id)?.cfg.level : undefined;
+      if (on !== undefined && on !== level) { showLevel(on); shadowFrames = 3; }
       rig.focus = next;
       rig.zoom = 1;
       rig.goal.az = baseAz + (next?.kind === 'ac' ? (WALL_SIDE[acs.get(next.id).cfg.wall] ?? 0) : 0);

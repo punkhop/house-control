@@ -125,6 +125,18 @@ const fixtures = {
     };
   },
 
+  // A smart plug or switch that runs something other than a lamp (a fan, an air
+  // conditioner): it shows it is on, but lights nothing.
+  plug(cfg) {
+    const y = cfg.y ?? 0.35;
+    return {
+      parts: [at(box(0.16, 0.2, 0.08, mat('#d9dce3', { rough: 0.5 }), { r: 0.02 }), 0, y, 0)],
+      glow: [at(cyl(0.035, 0.035, 0.012, glowMaterial(), 20), 0, y + 0.13, 0)],
+      lights: [],
+      hit: [0.45, 0.55, 0.45, y + 0.1],
+    };
+  },
+
   strip(cfg) {
     const y = cfg.y ?? 1;
     const length = cfg.length ?? 1;
