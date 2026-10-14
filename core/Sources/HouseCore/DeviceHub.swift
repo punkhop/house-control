@@ -11,10 +11,11 @@ public final class DeviceHub {
     private let smartLife: SmartLifeService
     public let homeAssistant: HomeAssistantService
     public let hue: HueService
+    public let govee: GoveeService
     /// Apple Home: HomeKit itself on the iPhone, the iPhone's catalog on the Mac.
     public let homeKit: DeviceService
     /// The platforms other than Smart Life, by the id a plan's `link.service` uses.
-    public var services: [DeviceService] { [homeAssistant, hue, homeKit] }
+    public var services: [DeviceService] { [homeAssistant, hue, govee, homeKit] }
     private func service(_ id: String) -> DeviceService? { services.first { $0.id == id } }
     /// The backend real devices are reached through: the QR-linked Smart Life account
     /// when there is one, otherwise a Tuya Cloud project, otherwise nothing (simulation).
@@ -57,6 +58,7 @@ public final class DeviceHub {
         smartLife = SmartLifeService(vault: vault("smartlife"))
         homeAssistant = HomeAssistantService(vault: vault("homeassistant"))
         hue = HueService(vault: vault("hue"))
+        govee = GoveeService(vault: vault("govee"))
         self.homeKit = homeKit ?? RemoteCatalogService(id: "homekit", title: "Apple Home",
                                                        file: directory.appendingPathComponent("homekit-devices.json"))
         for service in services {
@@ -258,7 +260,7 @@ public final class DeviceHub {
         return merged
     }
 
-    /// Home Assistant, Hue and Apple Home, each asked once for all of its linked devices.
+    /// Home Assistant, Hue, Govee and Apple Home, each asked once for all of its linked devices.
     private func pollServices() async -> [String: Any]? {
         var wanted: [String: Set<String>] = [:]
         for link in serviceLinks.values {
@@ -393,12 +395,13 @@ public final class DeviceHub {
         return out
     }
 
-    /// The connections a paired iPhone may take over: Home Assistant and Hue. (Apple Home
+    /// The connections a paired iPhone may take over: Home Assistant, Hue and the Govee lamps found. (Apple Home
     /// is the phone's own; the Smart Life session cannot be shared, Tuya rotates its tokens.)
     public var shareableConnections: [String: Any] {
         var out: [String: Any] = [:]
         if let ha = homeAssistant.shareable { out["homeassistant"] = ha }
         if let hue = hue.shareable { out["hue"] = hue }
+        if let govee = govee.shareable { out["govee"] = govee }
         return out
     }
 
@@ -406,6 +409,7 @@ public final class DeviceHub {
     public func adoptConnections(_ shared: [String: Any]) {
         homeAssistant.adopt(shared["homeassistant"] as? [String: Any])
         hue.adopt(shared["hue"] as? [String: Any])
+        govee.adopt(shared["govee"] as? [String: Any])
     }
 
     /// Read-only snapshot of what Smart Life reports for the given devices.

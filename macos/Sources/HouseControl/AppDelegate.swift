@@ -201,7 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         boot["services"] = hub.servicesInfo
         switch ProcessInfo.processInfo.environment["HOUSE_OPEN_EDITOR"] {
         case "smartlife": boot["section"] = "service:smartlife"
-        case "homeassistant", "hue", "homekit", "connections":
+        case "homeassistant", "hue", "govee", "homekit", "connections":
             let section = ProcessInfo.processInfo.environment["HOUSE_OPEN_EDITOR"]!
             boot["section"] = section == "connections" ? "connections" : "service:\(section)"
         default: break

@@ -232,6 +232,27 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(HueService.temperature(["temperature": ["temperature_report": ["temperature": 21.5]]]), 21.5)
     }
 
+    // MARK: - Govee
+
+    func testGoveeReadsAndWritesLights() {
+        // What an H6076 answered to devStatus, in colour and in white.
+        let colour = GoveeService.lightState(["onOff": 1, "brightness": 60, "color": ["r": 32, "g": 64, "b": 255], "colorTemInKelvin": 0])
+        XCTAssertEqual(colour["on"] as? Bool, true)
+        XCTAssertEqual(colour["brightness"] as? Double ?? 0, 0.6, accuracy: 0.001)
+        XCTAssertEqual(colour["color"] as? String, "#2040ff")
+        let white = GoveeService.lightState(["onOff": 0, "brightness": 100, "color": ["r": 0, "g": 0, "b": 0], "colorTemInKelvin": 4000])
+        XCTAssertEqual(white["on"] as? Bool, false)
+        XCTAssertEqual(white["temp"] as? Double, 4000)
+        XCTAssertTrue(white["color"] is NSNull)
+
+        // Brightness goes last: the lamp dropped it when the colour came after it.
+        let commands = GoveeService.commands(patch: ["on": true, "brightness": 0.6, "color": "#2040ff"])
+        XCTAssertEqual(commands.compactMap { $0["cmd"] as? String }, ["turn", "colorwc", "brightness"])
+        XCTAssertEqual((commands[2]["data"] as? [String: Int])?["value"], 60)
+        let warm = GoveeService.commands(patch: ["temp": 2700.0])
+        XCTAssertEqual((warm[0]["data"] as? [String: Any])?["colorTemInKelvin"] as? Int, 2700)
+    }
+
     // MARK: - Apple Home
 
     func testHomeKitMapsLights() {

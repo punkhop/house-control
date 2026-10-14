@@ -1,16 +1,17 @@
 // The editor's "Connections": the smart home platforms House Control can link the plan's
-// lamps and ACs to (Smart Life, Home Assistant, Philips Hue, Apple Home), the screens that
+// lamps and ACs to (Smart Life, Home Assistant, Philips Hue, Govee, Apple Home), the screens that
 // connect each one, and the pickers that link a lamp or an AC to one of their devices.
 import { h } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
 import { isNative, call } from '../bridge.js';
 import { SERVICES, linkOf } from '../config.js';
 
-const ORDER = ['smartlife', 'homeassistant', 'hue', 'homekit'];
+const ORDER = ['smartlife', 'homeassistant', 'hue', 'govee', 'homekit'];
 const LOOK = {
   smartlife: { icon: 'plug', tint: '#ff7a3d', blurb: 'Tuya, Smart Life and the many brands built on them' },
   homeassistant: { icon: 'homeassistant', tint: '#18bcf2', blurb: 'Everything it runs: Zigbee, Matter, Nest, Xiaomi, Sonoff…' },
   hue: { icon: 'bulb', tint: '#c38bff', blurb: 'A Hue Bridge on this network. No account needed' },
+  govee: { icon: 'bulb', tint: '#4fd1a5', blurb: 'Govee lamps with LAN Control on. No account needed' },
   homekit: { icon: 'home', tint: '#ffb340', blurb: 'HomeKit and Matter accessories, through your iPhone' },
 };
 const KIND_TITLES = { light: 'Lights and plugs', ac: 'Air conditioners', lock: 'Door locks', media: 'Media players', contact: 'Door and window sensors', sensor: 'Temperature sensors' };
@@ -89,7 +90,7 @@ export function createConnections({ rerender, toast, usedBy, onOpen }) {
         h('div.svc-text', h('b', SERVICES[id].name), h('span', LOOK[id].blurb)),
         h(`span.svc-status${connected(id) ? '.on' : ''}`, connected(id) ? icon('ok', 13, 2.4) : null, statusText(id)),
         icon('next', 16)))),
-      h('p.note', 'Lamps and ACs stay simulated until you link them: pick one on the plan, then choose its device under “Real device”. One home can mix all four.'),
+      h('p.note', 'Lamps and ACs stay simulated until you link them: pick one on the plan, then choose its device under “Real device”. One home can mix them all.'),
       isNative ? null : h('p.note.bad', 'Connecting is only available inside the macOS app (this is the browser preview).'),
     ];
   }
@@ -266,6 +267,15 @@ export function createConnections({ rerender, toast, usedBy, onOpen }) {
     ];
   }
 
+  /* ---------- Govee ---------- */
+
+  function govee() {
+    if (!state.devices && !state.loading) setTimeout(() => load(), 0);
+    return [section('On your network',
+      h('div.fields', h('button.btn', { onclick: () => load() }, 'Look again'))),
+    deviceList('govee')];
+  }
+
   /* ---------- Apple Home ---------- */
 
   function homeKit() {
@@ -294,6 +304,7 @@ export function createConnections({ rerender, toast, usedBy, onOpen }) {
     if (id === 'smartlife') return smartLifePanel();
     if (id === 'homeassistant') return homeAssistant();
     if (id === 'hue') return hue();
+    if (id === 'govee') return govee();
     return homeKit();
   }
 

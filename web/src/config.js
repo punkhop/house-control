@@ -28,6 +28,7 @@ export const SERVICES = {
   smartlife: { name: 'Smart Life', short: 'Smart Life' },
   homeassistant: { name: 'Home Assistant', short: 'Home Assistant' },
   hue: { name: 'Philips Hue', short: 'Hue' },
+  govee: { name: 'Govee', short: 'Govee' },
   homekit: { name: 'Apple Home', short: 'Apple Home' },
 };
 export const FLOOR_KINDS = ['oak', 'walnut', 'tile', 'stone'];
