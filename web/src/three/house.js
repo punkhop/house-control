@@ -149,7 +149,7 @@ export function buildHouse(config, camDir) {
     const geo = s.axis === 'x' ? new THREE.BoxGeometry(len, y1 - y0, t) : new THREE.BoxGeometry(t, y1 - y0, len);
     const m = new THREE.Mesh(geo, materials);
     const mid = (a + b) / 2;
-    m.position.set(s.axis === 'x' ? mid : s.c, (y0 + y1) / 2, s.axis === 'x' ? s.c : mid);
+    m.position.set(s.axis === 'x' ? mid : s.cc, (y0 + y1) / 2, s.axis === 'x' ? s.cc : mid);
     m.castShadow = m.receiveShadow = true;
     into.add(m);
     return m;
@@ -161,8 +161,11 @@ export function buildHouse(config, camDir) {
     // Outward normal of an exterior wall points away from its room.
     const nx = s.axis === 'z' ? -s.inside : 0;
     const nz = s.axis === 'x' ? -s.inside : 0;
-    const a = s.a - (s.freeA ? EXT_T / 2 : 0);
-    const b = s.b + (s.freeB ? EXT_T / 2 : 0);
+    // Rooms are measured inside wall to inside wall: an exterior wall stands outside its
+    // room's edge (so the room keeps its full taped size), an interior one straddles it.
+    s.cc = exterior ? s.c - s.inside * EXT_T / 2 : s.c;
+    const a = s.a - (s.freeA ? EXT_T : 0);
+    const b = s.b + (s.freeB ? EXT_T : 0);
     const type = s.opening?.type;
 
     into = group;

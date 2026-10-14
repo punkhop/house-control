@@ -112,13 +112,14 @@ const builders = {
     );
   },
 
-  sideboard({ width = 1.6 }) {
+  // `bare` leaves the top empty (no vase, no book).
+  sideboard({ width = 1.6, bare = false }) {
     return group(
       ...legs(width, 0.42, 0.16, mat(BLACK), 0.07, 0.015),
       at(box(width, 0.6, 0.42, mat(WOOD, { rough: 0.6 }), { r: 0.015 }), 0, 0.16, 0),
       ...doorLines(width, 0.54, 0.19, 0.21, 4, mat(DARK_WOOD)),
-      at(cyl(0.07, 0.05, 0.26, mat('#3d6b8c', { rough: 0.35 })), -width / 2 + 0.3, 0.76, 0),
-      at(box(0.3, 0.05, 0.2, mat('#d8c9a8', { rough: 0.9 }), { r: 0.006 }), width / 2 - 0.35, 0.76, 0),
+      !bare && at(cyl(0.07, 0.05, 0.26, mat('#3d6b8c', { rough: 0.35 })), -width / 2 + 0.3, 0.76, 0),
+      !bare && at(box(0.3, 0.05, 0.2, mat('#d8c9a8', { rough: 0.9 }), { r: 0.006 }), width / 2 - 0.35, 0.76, 0),
     );
   },
 
@@ -143,10 +144,10 @@ const builders = {
     return g;
   },
 
-  island({ width = 2.0, depth = 0.86, stools = 3 }) {
+  island({ width = 2.0, depth = 0.86, stools = 3, color = '#39424f', counter = '#e9e7e2' }) {
     const g = group(
-      at(box(width - 0.12, 0.88, depth - 0.24, mat('#39424f', { rough: 0.7 }), { r: 0.015 }), 0, 0, -0.04),
-      at(box(width, 0.05, depth, mat('#e9e7e2', { rough: 0.3 }), { r: 0.015 }), 0, 0.88, 0),
+      at(box(width - 0.12, 0.88, depth - 0.24, mat(color, { rough: 0.7 }), { r: 0.015 }), 0, 0, -0.04),
+      at(box(width, 0.05, depth, mat(counter, { rough: 0.3 }), { r: 0.015 }), 0, 0.88, 0),
     );
     for (let i = 0; i < stools; i++) {
       const x = -width / 2 + (width / stools) * (i + 0.5);
@@ -161,16 +162,16 @@ const builders = {
 
   // A run of base cabinets with a counter; `hob` and `sink` sit at -1/4 and +1/4 of the run
   // (or any fraction along it), uppers on the wall behind when `upper`.
-  kitchen({ width = 3, upper = true, hob = true, sink = true }) {
-    const front = mat('#e4e1da', { rough: 0.6 });
-    const seam = mat('#b9b6ae');
+  kitchen({ width = 3, upper = true, hob = true, sink = true, color = '#e4e1da', counter = '#33363d' }) {
+    const front = mat(color, { rough: 0.6 });
+    const seam = mat(darker(color, 0.8));
     const n = Math.max(2, Math.round(width / 0.6));
     const hx = typeof hob === 'number' ? hob * width : -width / 4;
     const sx = typeof sink === 'number' ? sink * width : width / 4;
     const g = group(
       at(box(width, 0.86, 0.6, front, { r: 0.008 }), 0, 0, 0),
       ...doorLines(width, 0.78, 0.06, 0.3, n, seam),
-      at(box(width + 0.02, 0.04, 0.63, mat('#33363d', { rough: 0.35 }), { r: 0.008 }), 0, 0.86, 0.005),
+      at(box(width + 0.02, 0.04, 0.63, mat(counter, { rough: 0.35 }), { r: 0.008 }), 0, 0.86, 0.005),
     );
     if (hob !== false) g.add(at(box(0.58, 0.012, 0.5, mat('#0c0d10', { rough: 0.15 }), { r: 0 }), hx, 0.9, 0));
     if (sink !== false) g.add(
@@ -223,11 +224,12 @@ const builders = {
     );
   },
 
-  dresser({ width = 1.3 }) {
+  // `bare` leaves the top empty (no vase).
+  dresser({ width = 1.3, bare = false }) {
     const g = group(
       ...legs(width, 0.45, 0.1, mat(BLACK), 0.06, 0.015),
       at(box(width, 0.74, 0.45, mat(WHITE, { rough: 0.6 }), { r: 0.015 }), 0, 0.1, 0),
-      at(cyl(0.09, 0.07, 0.18, mat('#c9a15e', { rough: 0.4 })), width / 2 - 0.3, 0.84, 0),
+      !bare && at(cyl(0.09, 0.07, 0.18, mat('#c9a15e', { rough: 0.4 })), width / 2 - 0.3, 0.84, 0),
     );
     for (let i = 1; i < 3; i++) g.add(at(box(width - 0.06, 0.006, 0.005, mat('#b9b6ae'), { r: 0 }), 0, 0.1 + 0.247 * i, 0.226));
     return g;
@@ -267,10 +269,13 @@ const builders = {
     );
   },
 
-  bathtub({ width = 1.7 }) {
+  // `water: false` draws it empty: a white basin sunk into the rim.
+  bathtub({ width = 1.7, water = true }) {
     return group(
       at(box(width, 0.56, 0.78, mat(WHITE, { rough: 0.25 }), { r: 0.1 }), 0, 0, 0),
-      at(box(width - 0.2, 0.02, 0.58, mat('#9fd3ec', { rough: 0.1, emissive: '#1d4f6b', emissiveIntensity: 0.25 }), { r: 0.009 }), 0, 0.545, 0),
+      water
+        ? at(box(width - 0.2, 0.02, 0.58, mat('#9fd3ec', { rough: 0.1, emissive: '#1d4f6b', emissiveIntensity: 0.25 }), { r: 0.009 }), 0, 0.545, 0)
+        : at(box(width - 0.2, 0.02, 0.58, mat('#d6d4cf', { rough: 0.3 }), { r: 0.009 }), 0, 0.548, 0),
       at(cyl(0.014, 0.014, 0.2, mat(METAL, { rough: 0.2, metal: 0.9 }), 10), -width / 2 + 0.11, 0.56, 0),
     );
   },
@@ -284,14 +289,16 @@ const builders = {
     return group(at(box(0.38, 0.78, 0.17, c, { r: 0.03 }), 0, 0, -0.24), bowl, lid);
   },
 
-  desk({ width = 1.4 }) {
+  // `monitor` is the screen's width in metres; it is drawn 21:9 when wider than 0.8.
+  desk({ width = 1.4, monitor = 0.56 }) {
+    const mh = monitor > 0.8 ? monitor * 9 / 21 : 0.34;
     const c = chair('#2b2e37');
     c.position.z = 0.5;
     c.rotation.y = Math.PI;
     return group(
       at(box(width, 0.04, 0.65, mat(WOOD, { rough: 0.55 }), { r: 0.012 }), 0, 0.72, 0),
       ...legs(width, 0.65, 0.72, mat(BLACK), 0.06, 0.02),
-      at(box(0.56, 0.34, 0.025, mat(BLACK, { rough: 0.3 }), { r: 0.008 }), 0, 0.86, -0.18),
+      at(box(monitor, mh, 0.025, mat(BLACK, { rough: 0.3 }), { r: 0.008 }), 0, 0.86, -0.18),
       at(box(0.2, 0.1, 0.12, mat(BLACK), { r: 0.008 }), 0, 0.76, -0.18),
       c,
     );
@@ -328,8 +335,8 @@ const builders = {
   },
 
   // A projector screen hung on the wall it backs onto: white surface, thin black border.
-  screen({ width = 2.45, bottom = 0.7 }) {
-    const h = width * 0.5625;
+  screen({ width = 2.45, height = null, bottom = 0.7 }) {
+    const h = height ?? width * 0.5625;
     return group(
       at(box(width + 0.08, h + 0.08, 0.03, mat(BLACK, { rough: 0.6 }), { r: 0.006 }), 0, bottom - 0.04, 0),
       at(box(width, h, 0.01, mat('#f4f4f2', { rough: 0.9, emissive: '#3a3f4a', emissiveIntensity: 0.25 }), { r: 0 }), 0, bottom, 0.02),
@@ -409,6 +416,65 @@ const builders = {
       ...legs(width, depth, 0.72, mat(color, { rough: 0.4 }), 0.05, 0.022),
     );
   },
+
+  // A desktop printer: body, paper tray out the front, output slot on top.
+  printer({ width = 0.42, depth = 0.36, height = 0.2, color = '#2a2c33' }) {
+    const body = mat(color, { rough: 0.5 });
+    return group(
+      at(box(width, height, depth, body, { r: 0.02 }), 0, 0, 0),
+      at(box(width * 0.7, 0.01, 0.006, mat(darker(color, 0.6)), { r: 0 }), 0, height * 0.55, depth / 2),
+      at(box(width * 0.66, 0.014, 0.14, mat(darker(color, 1.25), { rough: 0.5 }), { r: 0.004 }), 0, height * 0.18, depth / 2 + 0.06),
+      at(box(width * 0.6, 0.006, depth * 0.5, mat(darker(color, 0.7)), { r: 0 }), 0, height, -0.02),
+    );
+  },
+
+  // A curvy S-shaped chaise longue: raised back at the head (-z), a dip for the seat and a
+  // rise under the knees, on a low dark base; `blanket` drapes a throw over the foot.
+  chaise({ length = 1.65, width = 0.62, color = '#3b2a22', blanket = null }) {
+    const L = length;
+    const top = (t) => 0.42 + 0.4 * Math.exp(-(((t - 0.02) / 0.14) ** 2)) + 0.1 * Math.exp(-(((t - 0.72) / 0.12) ** 2)) - 0.04 * t;
+    const shape = new THREE.Shape();
+    shape.moveTo(-L / 2, 0.12);
+    for (let i = 0; i <= 40; i++) shape.lineTo(-L / 2 + (L * i) / 40, top(i / 40));
+    shape.lineTo(L / 2, 0.12);
+    shape.lineTo(-L / 2, 0.12);
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: width, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 2, curveSegments: 4 });
+    geo.translate(0, 0, -width / 2);
+    geo.rotateY(-Math.PI / 2); // length runs along z, head at -z
+    const body = new THREE.Mesh(geo, mat(color, { rough: 0.45 }));
+    const g = group(body, at(box(width * 0.7, 0.12, L * 0.7, mat(BLACK, { rough: 0.6 }), { r: 0.02 }), 0, 0, 0));
+    if (blanket) {
+      const throwOver = at(box(width + 0.06, 0.03, 0.55, mat(blanket, { rough: 1 }), { r: 0.012 }), 0, top(0.86) + 0.02, L * 0.3);
+      throwOver.rotation.x = 0.12;
+      g.add(throwOver, at(box(0.025, 0.28, 0.5, mat(blanket, { rough: 1 }), { r: 0.01 }), width / 2 + 0.03, top(0.86) - 0.26, L * 0.3));
+    }
+    return g;
+  },
+
+  // One piece of a sectional sofa, about `size` [w, d] metres, facing +z. `back` puts a
+  // backrest along -z; `corner` adds one along -x too (the L piece); `arm` 'left' |
+  // 'right' | 'both' adds arms. With no back and no arm it is an ottoman.
+  sectional({ size = [0.8, 0.95], color = '#5e4a3c', back = true, corner = false, arm = null }) {
+    const [w, d] = size;
+    const fabric = mat(color, { rough: 1 });
+    const dark = mat(darker(color, 0.82), { rough: 1 });
+    const parts = [
+      ...legs(w, d, 0.08, mat(BLACK, { rough: 0.5 }), 0.06),
+      at(box(w, 0.22, d, dark, { r: 0.05 }), 0, 0.08, 0),
+    ];
+    const bk = back ? 0.22 : 0;
+    const ck = corner ? 0.22 : 0;
+    const al = arm === 'left' || arm === 'both' ? 0.18 : 0;
+    const ar = arm === 'right' || arm === 'both' ? 0.18 : 0;
+    const x0 = -w / 2 + Math.max(ck, al);
+    const x1 = w / 2 - ar;
+    parts.push(at(box(x1 - x0 - 0.02, 0.16, d - bk - 0.02, fabric, { r: 0.06 }), (x0 + x1) / 2, 0.3, bk / 2));
+    if (back) parts.push(at(box(w, 0.5, bk, dark, { r: 0.08 }), 0, 0.3, -d / 2 + bk / 2));
+    if (corner) parts.push(at(box(ck, 0.5, d, dark, { r: 0.08 }), -w / 2 + ck / 2, 0.3, 0));
+    if (al && !corner) parts.push(at(box(al, 0.32, d, dark, { r: 0.07 }), -w / 2 + al / 2, 0.3, 0));
+    if (ar) parts.push(at(box(ar, 0.32, d, dark, { r: 0.07 }), w / 2 - ar / 2, 0.3, 0));
+    return group(parts);
+  },
 };
 
 export const FURNITURE_TYPES = Object.keys(builders);
@@ -445,6 +511,9 @@ export function footprint(item) {
     case 'shower': return item.size || [0.9, 0.9];
     case 'mirror': return [w || 0.8, 0.03];
     case 'table': return [w || 1.2, item.depth || 0.8];
+    case 'printer': return [w || 0.42, item.depth || 0.36];
+    case 'chaise': return [item.width || 0.62, item.length || 1.65];
+    case 'sectional': return item.size || [0.8, 0.95];
     default: return [0.6, 0.6];
   }
 }

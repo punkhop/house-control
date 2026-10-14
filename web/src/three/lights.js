@@ -181,16 +181,44 @@ const fixtures = {
     };
   },
 
-  // A small black floor fan, on a smart plug: shows it is on, lights nothing.
+  // A fan on a smart plug, standing on the floor or (with `y`) on a table top; `small`
+  // draws a little desk fan. Shows it is on, lights nothing.
   fan(cfg) {
-    const black = mat('#16171b', { rough: 0.6 });
-    const head = at(cyl(0.13, 0.13, 0.08, black, 24), 0, 0.2, 0);
-    head.rotation.x = Math.PI / 2;
+    const y = cfg.y ?? 0;
+    const k = cfg.small ? 0.62 : 1;
+    const black = mat(cfg.color ?? '#16171b', { rough: 0.6 });
+    const hy = y + 0.2 * k;
+    const rim = at(new THREE.Mesh(new THREE.TorusGeometry(0.13 * k, 0.012, 8, 28), black), 0, hy, 0.02);
+    const hub = at(cyl(0.035 * k, 0.035 * k, 0.05, black, 16), 0, hy, 0);
+    hub.rotation.x = Math.PI / 2;
+    hub.position.y = hy;
+    const blades = [0, 1, 2].map((i) => {
+      const b = at(box(0.2 * k, 0.07 * k, 0.008, mat('#2a2c31', { rough: 0.5 }), { r: 0.02 }), 0, hy, 0.01);
+      b.geometry.translate(0.1 * k, 0, 0);
+      b.position.y = hy;
+      b.rotation.z = (i * Math.PI * 2) / 3;
+      return b;
+    });
+    const base = [at(cyl(0.1 * k, 0.12 * k, 0.04 * k, black, 20), 0, y, 0), at(cyl(0.018 * k, 0.018 * k, 0.14 * k, black, 8), 0, y + 0.04 * k, 0)];
     return {
-      parts: [at(cyl(0.1, 0.12, 0.04, black, 20), 0, 0, 0), at(cyl(0.018, 0.018, 0.14, black, 8), 0, 0.04, 0), head],
-      glow: [at(cyl(0.02, 0.02, 0.01, glowMaterial(), 12), 0, 0.02, 0.11)],
+      parts: [...base, hub, ...blades, rim],
+      glow: [at(cyl(0.012, 0.012, 0.01, glowMaterial(), 12), 0, hy, 0.03)],
       lights: [],
-      hit: [0.4, 0.45, 0.4, 0.2],
+      hit: [0.4 * k, 0.45 * k, 0.4 * k, hy],
+    };
+  },
+
+  // A ceiling exhaust fan: a square white grille flush with the ceiling.
+  exhaust(cfg, H) {
+    const y = cfg.y ?? H - 0.01;
+    const white = mat('#e8e6e1', { rough: 0.5 });
+    const slats = [];
+    for (let i = -3; i <= 3; i++) slats.push(at(box(0.22, 0.012, 0.008, mat('#9a9890', { rough: 0.6 }), { r: 0 }), 0, y - 0.022, i * 0.03));
+    return {
+      parts: [at(box(0.3, 0.02, 0.3, white, { r: 0.006 }), 0, y - 0.02, 0), ...slats],
+      glow: [at(box(0.24, 0.004, 0.24, glowMaterial(), { r: 0 }), 0, y - 0.016, 0)],
+      lights: [],
+      hit: [0.45, 0.2, 0.45, y - 0.05],
     };
   },
 
