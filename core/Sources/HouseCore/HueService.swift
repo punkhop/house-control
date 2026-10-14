@@ -184,7 +184,7 @@ public final class HueService: DeviceService {
     }
 
     public func send(kind: DeviceKind, id: String, patch: [String: Any], state: [String: Any]) async throws {
-        guard kind == .light else { throw ServiceFailure("Hue has no air conditioners") }
+        guard kind == .light else { throw ServiceFailure("Hue only controls lights") }
         let body = Self.lightBody(patch: DeviceKind.withPower(patch, state: state))
         guard !body.isEmpty else { return }
         let answer = try await call("PUT", "/clip/v2/resource/light/\(id)", body: body)

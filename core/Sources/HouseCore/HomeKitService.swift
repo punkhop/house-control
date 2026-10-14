@@ -180,6 +180,7 @@ public final class HomeKitService: NSObject, DeviceService {
             if let lo = c.metadata?.minimumValue?.doubleValue, let hi = c.metadata?.maximumValue?.doubleValue { limits[name] = (lo, hi) }
         }
         let has = Set(characteristics.keys)
+        guard kind != .lock else { throw ServiceFailure("Locks work through Home Assistant only") }
         let writes = kind == .light
             ? HomeKitMapper.lightWrites(DeviceKind.withPower(patch, state: state), kind: entry.kind, has: has, limits: limits)
             : HomeKitMapper.acWrites(patch, state: state, kind: entry.kind, has: has, limits: limits)

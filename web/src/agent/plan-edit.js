@@ -20,7 +20,7 @@ const pick = (obj, keys) => Object.fromEntries(Object.entries(obj || {}).filter(
 /** The plan as an AI sees it: links to real hardware are replaced by `"linked": true`. */
 export function redactPlan(raw) {
   const plan = structuredClone(raw);
-  for (const list of [plan.lights || [], plan.acs || []]) {
+  for (const list of [plan.lights || [], plan.acs || [], plan.locks || []]) {
     for (const d of list) {
       if (LINK_FIELDS.some((k) => d[k])) {
         for (const k of LINK_FIELDS) delete d[k];
@@ -33,7 +33,7 @@ export function redactPlan(raw) {
 
 /** Puts the hardware links of `old` back into a plan an AI wrote from a redacted copy. */
 export function restoreLinks(plan, old) {
-  for (const key of ['lights', 'acs']) {
+  for (const key of ['lights', 'acs', 'locks']) {
     const links = new Map((old[key] || []).map((d) => [d.id, pick(d, LINK_FIELDS)]));
     for (const d of plan[key] || []) {
       delete d.linked;
@@ -92,7 +92,7 @@ function checkRect(rect, where) {
 export function applyOperations(raw, operations) {
   if (!Array.isArray(operations) || !operations.length) fail('"operations" must be a non-empty list');
   const plan = structuredClone(raw);
-  for (const key of ['rooms', 'openings', 'furniture', 'lights', 'acs', 'scenes']) plan[key] = plan[key] || [];
+  for (const key of ['rooms', 'openings', 'furniture', 'lights', 'acs', 'locks', 'scenes']) plan[key] = plan[key] || [];
   const originalFurniture = plan.furniture.length;
   const originalOpenings = plan.openings.length;
   const dropFurniture = new Set();
@@ -138,7 +138,7 @@ export function applyOperations(raw, operations) {
           if (op.moveContents !== false && (dx || dz)) {
             const inside = (p) => roomAt({ rooms: [room] }, p);
             for (const f of plan.furniture) if (inside(f.pos)) f.pos = [round(f.pos[0] + dx), round(f.pos[1] + dz)];
-            for (const d of [...plan.lights, ...plan.acs]) if (d.room === room.id) d.pos = [round(d.pos[0] + dx), round(d.pos[1] + dz)];
+            for (const d of [...plan.lights, ...plan.acs, ...plan.locks]) if (d.room === room.id) d.pos = [round(d.pos[0] + dx), round(d.pos[1] + dz)];
           }
           room.rect = rect;
         }
@@ -151,12 +151,13 @@ export function applyOperations(raw, operations) {
       }
       case 'remove_room': {
         const i = findById(plan.rooms, op.id, 'room');
-        const devices = [...plan.lights, ...plan.acs].filter((d) => d.room === op.id);
+        const devices = [...plan.lights, ...plan.acs, ...plan.locks].filter((d) => d.room === op.id);
         if (devices.some(isLinked)) fail(`${where}: this room has devices linked to real hardware; unlink them in the editor first`);
         const room = plan.rooms[i];
         plan.furniture.forEach((f, k) => { if (k < originalFurniture && roomAt({ rooms: [room] }, f.pos)) dropFurniture.add(k); });
         plan.lights = plan.lights.filter((d) => d.room !== op.id);
         plan.acs = plan.acs.filter((d) => d.room !== op.id);
+        plan.locks = plan.locks.filter((d) => d.room !== op.id);
         plan.rooms.splice(i, 1);
         changes.push(`removed room ${room.name}`);
         break;

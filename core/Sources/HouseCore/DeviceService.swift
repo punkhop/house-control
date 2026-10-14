@@ -37,7 +37,7 @@ public extension DeviceService {
 }
 
 public enum DeviceKind: String {
-    case light, ac, sensor
+    case light, ac, sensor, lock
 
     /// A lamp the panel shows as on, given a new brightness or colour, is switched on as well:
     /// the real one may be off (switched off elsewhere since the last read), and some
@@ -83,16 +83,19 @@ public struct ServiceDevice {
 public struct DeviceReading {
     public var light: [String: Any]?
     public var ac: [String: Any]?
+    /// A door lock: `state` is locked, unlocked, jammed, locking or unlocking.
+    public var lock: [String: Any]?
     /// What an AC can do: `modes`, `fans`, `swing`, `sleep`, `eco` (see the store's acFeatures).
     public var features: [String: Any]?
     /// A temperature sensor's reading in °C.
     public var temperature: Double?
     public var online = true
 
-    public init(light: [String: Any]? = nil, ac: [String: Any]? = nil, features: [String: Any]? = nil,
-                temperature: Double? = nil, online: Bool = true) {
+    public init(light: [String: Any]? = nil, ac: [String: Any]? = nil, lock: [String: Any]? = nil,
+                features: [String: Any]? = nil, temperature: Double? = nil, online: Bool = true) {
         self.light = light
         self.ac = ac
+        self.lock = lock
         self.features = features
         self.temperature = temperature
         self.online = online

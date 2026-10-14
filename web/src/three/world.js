@@ -8,6 +8,7 @@ import { buildHouse } from './house.js';
 import { buildFurniture } from './furniture.js';
 import { LightUnit } from './lights.js';
 import { ACUnit } from './ac.js';
+import { LockUnit } from './lock.js';
 
 export const STAGE_BG = '#0a0e1a';
 
@@ -71,6 +72,12 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     acs.set(cfg.id, unit);
     floorGroups[cfg.level].add(unit.group);
   }
+  const locks = new Map();
+  for (const cfg of config.locks) {
+    const unit = new LockUnit(cfg);
+    locks.set(cfg.id, unit);
+    floorGroups[cfg.level].add(unit.group);
+  }
   let hitTargets = [];
   function showLevel(n) {
     level = n;
@@ -78,6 +85,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     hitTargets = [
       ...[...lights.values()].filter((u) => u.cfg.level === n).map((u) => u.hit),
       ...[...acs.values()].filter((u) => u.cfg.level === n).map((u) => u.hit),
+      ...[...locks.values()].filter((u) => u.cfg.level === n).map((u) => u.hit),
       ...floorGroups[n].userData.floors,
     ];
   }
@@ -202,6 +210,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
       unit.apply(store.state.lights[id], { ...opts, delay: opts.stagger ? 0.25 + i++ * 0.06 : 0 });
     }
     for (const [id, unit] of acs) unit.apply(store.state.acs[id], opts);
+    for (const [id, unit] of locks) unit.apply(store.state.locks[id], opts);
     wake();
   }
 
@@ -209,6 +218,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     if (change.type === 'tick') return;
     if (change.type === 'light') lights.get(change.id)?.apply(store.state.lights[change.id]);
     else if (change.type === 'ac') acs.get(change.id)?.apply(store.state.acs[change.id]);
+    else if (change.type === 'lock') locks.get(change.id)?.apply(store.state.locks[change.id]);
     else syncAll();
     wake();
   });
@@ -232,7 +242,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
   }
 
   function unitOf(t) {
-    return t?.kind === 'light' ? lights.get(t.id) : t?.kind === 'ac' ? acs.get(t.id) : null;
+    return t?.kind === 'light' ? lights.get(t.id) : t?.kind === 'ac' ? acs.get(t.id) : t?.kind === 'lock' ? locks.get(t.id) : null;
   }
 
   function screenAnchor(t) {
@@ -348,6 +358,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     let active = updateRig(dt);
     for (const unit of lights.values()) active = unit.update(dt) || active;
     for (const unit of acs.values()) active = unit.update(dt) || active;
+    for (const unit of locks.values()) active = unit.update(dt) || active;
     if (shadowFrames > 0) { renderer.shadowMap.needsUpdate = true; shadowFrames--; active = true; }
     if (active || awake > 0) {
       composer.render(dt);
@@ -378,6 +389,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
   const world = {
     lights,
     acs,
+    locks,
 
     setInsets(top, bottom) { topInset = top; bottomInset = bottom; resize(); },
     resize,
@@ -398,7 +410,8 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
       // Focusing something on another floor brings that floor up first.
       const on = next?.kind === 'room' ? config.rooms.find((r) => r.id === next.id)?.level
         : next?.kind === 'ac' ? acs.get(next.id)?.cfg.level
-          : next?.kind === 'light' ? lights.get(next.id)?.cfg.level : undefined;
+          : next?.kind === 'light' ? lights.get(next.id)?.cfg.level
+            : next?.kind === 'lock' ? locks.get(next.id)?.cfg.level : undefined;
       if (on !== undefined && on !== level) { showLevel(on); shadowFrames = 3; }
       rig.focus = next;
       rig.zoom = 1;
@@ -445,6 +458,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
         updateRig(0.05);
         for (const unit of lights.values()) unit.update(0.05);
         for (const unit of acs.values()) unit.update(0.05);
+        for (const unit of locks.values()) unit.update(0.05);
       }
       renderer.shadowMap.needsUpdate = true;
       composer.render(0);

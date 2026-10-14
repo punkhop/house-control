@@ -58,21 +58,26 @@ export function createAgent({ store, config, raw, render, onAction }) {
     fan: state.acs[cfg.id].fan, roomTemp: state.acs[cfg.id].roomTemp,
   });
 
+  // Read only: an assistant can say whether a door is locked, never lock or unlock it.
+  const lockJSON = (cfg) => ({ id: cfg.id, name: cfg.name, room: cfg.room, real: isLinked(cfg), state: state.locks[cfg.id].state });
+
   function overview() {
     const lightsOn = config.lights.filter((l) => state.lights[l.id].on).length;
     const acsOn = config.acs.filter((a) => state.acs[a.id].on).length;
     const scene = config.scenes.find((s) => s.id === state.scene);
     const lines = [
       `Home "${config.name}": ${config.rooms.length} rooms, ${config.lights.length} lights (${lightsOn} on), `
-      + `${config.acs.length} air conditioners (${acsOn} running).${scene ? ` Active scene: ${scene.name}.` : ''}`,
+      + `${config.acs.length} air conditioners (${acsOn} running)${config.locks.length ? `, ${config.locks.length} door locks` : ''}.${scene ? ` Active scene: ${scene.name}.` : ''}`,
     ];
     for (const room of config.rooms) {
       const lights = config.lights.filter((l) => l.room === room.id);
       const acs = config.acs.filter((a) => a.room === room.id);
-      if (!lights.length && !acs.length) { lines.push('', `${room.name} [${room.id}] — no devices`); continue; }
+      const locks = config.locks.filter((k) => k.room === room.id);
+      if (!lights.length && !acs.length && !locks.length) { lines.push('', `${room.name} [${room.id}] — no devices`); continue; }
       lines.push('', `${room.name} [${room.id}]`);
       for (const l of lights) lines.push(`  • ${l.name} [${l.id}] — light (${l.type}; ${lightAbilities(l)}): ${lightState(l)}`);
       for (const a of acs) lines.push(`  • ${a.name} [${a.id}] — air conditioner (${a.min}–${a.max}°C): ${acState(a)}`);
+      for (const k of locks) lines.push(`  • ${k.name} [${k.id}] — door lock (read only): ${state.locks[k.id].state}`);
     }
     if (config.scenes.length) {
       lines.push('', `Scenes: ${config.scenes.map((s) => `${s.name} [${s.id}]`).join(', ')}`);
@@ -88,6 +93,7 @@ export function createAgent({ store, config, raw, render, onAction }) {
         id: r.id, name: r.name,
         lights: config.lights.filter((l) => l.room === r.id).map(lightJSON),
         acs: config.acs.filter((a) => a.room === r.id).map(acJSON),
+        locks: config.locks.filter((k) => k.room === r.id).map(lockJSON),
       })),
       scenes: config.scenes.map((s) => ({ id: s.id, name: s.name })),
     };

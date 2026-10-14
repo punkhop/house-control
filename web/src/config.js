@@ -117,6 +117,13 @@ export function normalize(raw) {
     return { ...a, name: a.name || a.id, level: roomLevel.get(a.room), y: a.y ?? 2.2, min: a.min ?? 16, max: a.max ?? 30 };
   });
 
+  const locks = (raw.locks || []).map((k) => {
+    unique(k.id, 'A lock');
+    need(roomIds.has(k.room), `Lock "${k.id}" refers to unknown room "${k.room}"`);
+    need(isPoint(k.pos), `Lock "${k.id}" needs "pos": [x, z]`);
+    return { ...k, name: k.name || k.id, level: roomLevel.get(k.room), rot: k.rot || 0 };
+  });
+
   const scenes = (raw.scenes || []).map((s) => {
     need(typeof s.id === 'string' && s.id, 'A scene is missing an "id"');
     return { id: s.id, name: s.name || s.id, icon: s.icon || 'sun', lights: s.lights || {}, acs: s.acs || {} };
@@ -145,6 +152,7 @@ export function normalize(raw) {
     furniture: (raw.furniture || []).map((f) => ({ ...f, level: f.level ?? 0 })),
     lights,
     acs,
+    locks,
     scenes,
     levels,
     bounds: boundsOf(rooms),

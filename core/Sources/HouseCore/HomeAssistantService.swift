@@ -179,6 +179,9 @@ public final class HomeAssistantService: DeviceService {
             guard isTemperature(attributes) else { return nil }
             device = ServiceDevice(id: id, name: name, kind: .sensor)
             device.detail = "temperature sensor"
+        case "lock":
+            device = ServiceDevice(id: id, name: name, kind: .lock)
+            device.detail = "lock"
         default:
             return nil
         }
@@ -255,6 +258,9 @@ public final class HomeAssistantService: DeviceService {
                 "swing": swings.contains("off") && swings.count > 1,
                 "sleep": presets.contains("sleep"), "eco": presets.contains("eco"),
             ]
+        } else if id.hasPrefix("lock.") {
+            let known = ["locked", "unlocked", "jammed", "locking", "unlocking", "open", "opening"]
+            reading.lock = ["state": known.contains(value) ? (value.hasPrefix("open") ? "unlocked" : value) : "unknown"]
         } else if id.hasPrefix("sensor."), let t = Double(value) {
             reading.temperature = (attributes["unit_of_measurement"] as? String) == "°F" ? (t - 32) * 5 / 9 : t
         }
@@ -289,6 +295,10 @@ public final class HomeAssistantService: DeviceService {
             }
             guard !data.isEmpty || patch["on"] as? Bool == true else { return [] }
             return [call("turn_on", data)]
+        }
+        if domain == "lock" {
+            guard let locked = patch["locked"] as? Bool else { return [] }
+            return [call(locked ? "lock" : "unlock")]
         }
         guard domain == "climate" else { return [] }
 

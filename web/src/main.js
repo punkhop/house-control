@@ -51,7 +51,7 @@ async function boot() {
   }
 
   const store = createStore(config);
-  const linked = [...config.lights, ...config.acs].some(isLinked);
+  const linked = [...config.lights, ...config.acs, ...config.locks].some(isLinked);
   // Never invent a starting state for real hardware: it reports its own.
   if (!store.restored && !linked) {
     // First launch: start with something worth looking at.
@@ -78,6 +78,8 @@ async function boot() {
         if (!target) return;
         if (target.kind === 'light') { haptic('light'); store.toggleLight(target.id); }
         else if (target.kind === 'ac') panel.openSheet(target);
+        // A door is never unlocked from the model: show its room, where the tile asks first.
+        else if (target.kind === 'lock') panel.selectRoom(store.lockCfg.get(target.id).room);
         else if (target.kind === 'room') panel.selectRoom(target.id);
       },
     });

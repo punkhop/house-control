@@ -5,6 +5,7 @@ import { h, clamp, createSlider, createColorPad, openMenu } from './dom.js';
 import { icon } from './icons.js';
 import { lightColor } from '../three/lights.js';
 import { MODE_COLORS } from '../three/ac.js';
+import { LOCK_COLORS } from '../three/lock.js';
 import { AC_SWINGS } from '../store.js';
 import { haptic, isPhone } from '../bridge.js';
 
@@ -25,6 +26,11 @@ function lightStatus(cfg, s) {
   if (!s.on) return 'Off';
   return cfg.capabilities.includes('brightness') ? `${Math.round(s.brightness * 100)}%` : 'On';
 }
+
+const LOCK_LABEL = {
+  locked: 'Locked', unlocked: 'Unlocked', locking: 'Locking…', unlocking: 'Unlocking…',
+  jammed: 'Jammed', unknown: 'Checking…', unavailable: 'Unavailable',
+};
 
 function acTemperatureColor(target, cfg) {
   const t = clamp((target - cfg.min) / (cfg.max - cfg.min), 0, 1);
@@ -257,6 +263,39 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     };
   }
 
+  // Locking is one tap; unlocking asks first, through the same menu the AC options use.
+  function lockTile(cfg) {
+    const sub = h('div.tile-sub');
+    const bubble = h('div.bubble');
+    const press = () => {
+      const s = state.locks[cfg.id].state;
+      if (s === 'unavailable' || s === 'locking' || s === 'unlocking') return;
+      if (s === 'locked') {
+        openMenu(clip, el, [{ label: `Unlock ${cfg.name}`, icon: icon('unlock', 16, 2.2),
+          action: () => { haptic('medium'); store.setLock(cfg.id, false); } }]);
+        return;
+      }
+      haptic('medium');
+      store.setLock(cfg.id, true);
+    };
+    const el = h('div.tile.lock', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: press }, bubble,
+      h('div.tile-text', h('div.tile-name', cfg.name), sub));
+    el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') press(); });
+    let shown = null;
+    return {
+      el, cfg, kind: 'lock',
+      update() {
+        const s = state.locks[cfg.id].state;
+        el.classList.toggle('on', s !== 'unknown' && s !== 'unavailable');
+        el.style.setProperty('--c', LOCK_COLORS[s] || LOCK_COLORS.unknown);
+        const open = s === 'unlocked' || s === 'unlocking';
+        if (shown !== open) { bubble.replaceChildren(icon(open ? 'unlock' : 'lock', 19)); shown = open; }
+        sub.textContent = ui.room === 'all' && !isPhone ? `${LOCK_LABEL[s]} · ${roomName.get(cfg.room)}` : LOCK_LABEL[s];
+      },
+    };
+  }
+
+  for (const cfg of config.locks) tiles.set(cfg.id, lockTile(cfg));
   for (const cfg of config.acs) tiles.set(cfg.id, acTile(cfg));
   for (const cfg of config.lights) tiles.set(cfg.id, lightTile(cfg));
 
@@ -276,6 +315,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       const devices = [...tiles.values()].filter((t) => t.cfg.room === room.id);
       if (!devices.length) continue;
       if (ui.room === 'all') nodes.push(h('div.group-label', room.name));
+      devices.filter((t) => t.kind === 'lock').forEach(add);
       devices.filter((t) => t.kind === 'ac').forEach(add);
       devices.filter((t) => t.kind === 'light').forEach(add);
     }
@@ -502,6 +542,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       const cfg = store.lightCfg.get(hit.id);
       const s = state.lights[hit.id];
       name = cfg.name; status = lightStatus(cfg, s); on = s.on; color = css(lightColor(s, tmp));
+    } else if (hit.kind === 'lock') {
+      const s = state.locks[hit.id].state;
+      name = store.lockCfg.get(hit.id).name; status = LOCK_LABEL[s]; on = s !== 'unknown' && s !== 'unavailable'; color = LOCK_COLORS[s];
     } else {
       const cfg = store.acCfg.get(hit.id);
       const s = state.acs[hit.id];
