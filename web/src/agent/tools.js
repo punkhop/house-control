@@ -61,23 +61,41 @@ export function createAgent({ store, config, raw, render, onAction }) {
   // An assistant can lock a door (set_locks) but never unlock one: that stays a tap in the panel.
   const lockJSON = (cfg) => ({ id: cfg.id, name: cfg.name, room: cfg.room, real: isLinked(cfg), state: state.locks[cfg.id].state });
 
+  // An assistant can read a media player and pause it or switch it off; nothing that makes noise.
+  function mediaState(cfg, s = state.media[cfg.id]) {
+    if (!s.on || ['unknown', 'unavailable'].includes(s.state)) return s.state === 'standby' ? 'off' : s.state;
+    const what = [[s.title, s.artist].filter(Boolean).join(' — '), s.app].filter(Boolean).join(', ');
+    return [s.state, what && `now: ${what}`, s.source && `input ${s.source}`,
+      s.volume != null && `volume ${pct(s.volume)}`, s.muted && 'muted'].filter(Boolean).join(', ');
+  }
+  const mediaJSON = (cfg) => {
+    const s = state.media[cfg.id];
+    return {
+      id: cfg.id, name: cfg.name, room: cfg.room, real: isLinked(cfg), state: s.state, on: s.on,
+      volume: s.volume == null ? null : Math.round(s.volume * 100), muted: s.muted ?? null, source: s.source ?? null,
+      title: s.title ?? null, artist: s.artist ?? null, app: s.app ?? null,
+    };
+  };
+
   function overview() {
     const lightsOn = config.lights.filter((l) => state.lights[l.id].on).length;
     const acsOn = config.acs.filter((a) => state.acs[a.id].on).length;
     const scene = config.scenes.find((s) => s.id === state.scene);
     const lines = [
       `Home "${config.name}": ${config.rooms.length} rooms, ${config.lights.length} lights (${lightsOn} on), `
-      + `${config.acs.length} air conditioners (${acsOn} running)${config.locks.length ? `, ${config.locks.length} door locks` : ''}.${scene ? ` Active scene: ${scene.name}.` : ''}`,
+      + `${config.acs.length} air conditioners (${acsOn} running)${config.locks.length ? `, ${config.locks.length} door locks` : ''}${config.media.length ? `, ${config.media.length} media players` : ''}.${scene ? ` Active scene: ${scene.name}.` : ''}`,
     ];
     for (const room of config.rooms) {
       const lights = config.lights.filter((l) => l.room === room.id);
       const acs = config.acs.filter((a) => a.room === room.id);
       const locks = config.locks.filter((k) => k.room === room.id);
-      if (!lights.length && !acs.length && !locks.length) { lines.push('', `${room.name} [${room.id}] — no devices`); continue; }
+      const media = config.media.filter((m) => m.room === room.id);
+      if (!lights.length && !acs.length && !locks.length && !media.length) { lines.push('', `${room.name} [${room.id}] — no devices`); continue; }
       lines.push('', `${room.name} [${room.id}]`);
       for (const l of lights) lines.push(`  • ${l.name} [${l.id}] — light (${l.type}; ${lightAbilities(l)}): ${lightState(l)}`);
       for (const a of acs) lines.push(`  • ${a.name} [${a.id}] — air conditioner (${a.min}–${a.max}°C): ${acState(a)}`);
       for (const k of locks) lines.push(`  • ${k.name} [${k.id}] — door lock (can lock, not unlock): ${state.locks[k.id].state}`);
+      for (const m of media) lines.push(`  • ${m.name} [${m.id}] — media player (can pause or switch off): ${mediaState(m)}`);
     }
     if (config.scenes.length) {
       lines.push('', `Scenes: ${config.scenes.map((s) => `${s.name} [${s.id}]`).join(', ')}`);
@@ -94,6 +112,7 @@ export function createAgent({ store, config, raw, render, onAction }) {
         lights: config.lights.filter((l) => l.room === r.id).map(lightJSON),
         acs: config.acs.filter((a) => a.room === r.id).map(acJSON),
         locks: config.locks.filter((k) => k.room === r.id).map(lockJSON),
+        media: config.media.filter((m) => m.room === r.id).map(mediaJSON),
       })),
       scenes: config.scenes.map((s) => ({ id: s.id, name: s.name })),
     };
@@ -222,6 +241,29 @@ export function createAgent({ store, config, raw, render, onAction }) {
     return { changed, notes };
   }
 
+  function quietMedia(args) {
+    const action = args.action;
+    if (action !== 'pause' && action !== 'off') fail('"action" must be "pause" or "off".');
+    const devices = resolve(args.players ?? args.targets ?? args.target, config.media, 'media players');
+    const notes = [];
+    const changed = [];
+    for (const cfg of devices) {
+      const s = state.media[cfg.id];
+      if (s.state === 'unavailable') { notes.push(`${cfg.name} is unavailable.`); continue; }
+      if (action === 'off') {
+        if (!s.on) { notes.push(`${cfg.name} is already off.`); continue; }
+        if (!s.can?.includes('power')) { notes.push(`${cfg.name} can't be switched off from here.`); continue; }
+        store.setMedia(cfg.id, { on: false });
+      } else {
+        if (s.state !== 'playing') { notes.push(`${cfg.name} isn't playing.`); continue; }
+        if (!s.can?.includes('playback')) { notes.push(`${cfg.name} can't be paused from here.`); continue; }
+        store.setMedia(cfg.id, { playing: false });
+      }
+      changed.push(cfg);
+    }
+    return { changed, notes };
+  }
+
   function activateScene(args) {
     const key = norm(args.scene ?? '');
     const scene = config.scenes.find((s) => s.id === args.scene || norm(s.name) === key);
@@ -339,6 +381,26 @@ export function createAgent({ store, config, raw, render, onAction }) {
         const { changed, notes } = lockDoors(args);
         const text = [changed.length ? `Locking ${changed.map((c) => c.name).join(', ')}.` : 'Nothing to lock.', ...notes].join(' ');
         return { text, summary: changed.length ? `Locked ${changed.map((c) => c.name).join(', ')}` : 'No change' };
+      },
+    },
+    {
+      name: 'quiet_media', group: 'control',
+      title: 'Pause or switch off media players',
+      description: 'Pause or switch off media players (TVs, receivers, speakers). Starting playback, '
+        + 'switching on, changing volume or input is not possible from here: only the person at the panel can.',
+      inputSchema: {
+        type: 'object', required: ['players', 'action'],
+        properties: {
+          players: { ...TARGETS, description: 'Which media players: ids like "media-kitchen_speaker", room ids, names, or "all".' },
+          action: { type: 'string', enum: ['pause', 'off'] },
+        },
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      run(args) {
+        const { changed, notes } = quietMedia(args);
+        const verb = args.action === 'off' ? 'Switching off' : 'Pausing';
+        const text = [changed.length ? `${verb} ${changed.map((c) => c.name).join(', ')}.` : 'Nothing to change.', ...notes].join(' ');
+        return { text, summary: changed.length ? `${args.action === 'off' ? 'Off' : 'Paused'}: ${changed.map((c) => c.name).join(', ')}` : 'No change' };
       },
     },
     {
