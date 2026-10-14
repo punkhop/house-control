@@ -58,7 +58,7 @@ export function createAgent({ store, config, raw, render, onAction }) {
     fan: state.acs[cfg.id].fan, roomTemp: state.acs[cfg.id].roomTemp,
   });
 
-  // Read only: an assistant can say whether a door is locked, never lock or unlock it.
+  // An assistant can lock a door (set_locks) but never unlock one: that stays a tap in the panel.
   const lockJSON = (cfg) => ({ id: cfg.id, name: cfg.name, room: cfg.room, real: isLinked(cfg), state: state.locks[cfg.id].state });
 
   function overview() {
@@ -77,7 +77,7 @@ export function createAgent({ store, config, raw, render, onAction }) {
       lines.push('', `${room.name} [${room.id}]`);
       for (const l of lights) lines.push(`  • ${l.name} [${l.id}] — light (${l.type}; ${lightAbilities(l)}): ${lightState(l)}`);
       for (const a of acs) lines.push(`  • ${a.name} [${a.id}] — air conditioner (${a.min}–${a.max}°C): ${acState(a)}`);
-      for (const k of locks) lines.push(`  • ${k.name} [${k.id}] — door lock (read only): ${state.locks[k.id].state}`);
+      for (const k of locks) lines.push(`  • ${k.name} [${k.id}] — door lock (can lock, not unlock): ${state.locks[k.id].state}`);
     }
     if (config.scenes.length) {
       lines.push('', `Scenes: ${config.scenes.map((s) => `${s.name} [${s.id}]`).join(', ')}`);
@@ -208,6 +208,20 @@ export function createAgent({ store, config, raw, render, onAction }) {
     return { changed, notes };
   }
 
+  function lockDoors(args) {
+    const devices = resolve(args.locks ?? args.targets ?? args.target, config.locks, 'door locks');
+    const notes = [];
+    const changed = [];
+    for (const cfg of devices) {
+      const s = state.locks[cfg.id].state;
+      if (s === 'locked' || s === 'locking') { notes.push(`${cfg.name} is already locked.`); continue; }
+      if (s === 'unavailable') { notes.push(`${cfg.name} is unavailable, so it can't be locked from here.`); continue; }
+      store.setLock(cfg.id, true);
+      changed.push(cfg);
+    }
+    return { changed, notes };
+  }
+
   function activateScene(args) {
     const key = norm(args.scene ?? '');
     const scene = config.scenes.find((s) => s.id === args.scene || norm(s.name) === key);
@@ -308,6 +322,23 @@ export function createAgent({ store, config, raw, render, onAction }) {
       run(args) {
         const { changed, notes } = setACs(args);
         return { text: describeChange(changed, notes, 'ac'), summary: shortSummary(changed, 'ac') };
+      },
+    },
+    {
+      name: 'set_locks', group: 'control',
+      title: 'Lock doors',
+      description: 'Lock door locks. Unlocking is not possible from here: only the person at the panel can unlock a door.',
+      inputSchema: {
+        type: 'object', required: ['locks'],
+        properties: {
+          locks: { ...TARGETS, description: 'Which locks: ids like "lock-front_door", room ids, names, or "all".' },
+        },
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      run(args) {
+        const { changed, notes } = lockDoors(args);
+        const text = [changed.length ? `Locking ${changed.map((c) => c.name).join(', ')}.` : 'Nothing to lock.', ...notes].join(' ');
+        return { text, summary: changed.length ? `Locked ${changed.map((c) => c.name).join(', ')}` : 'No change' };
       },
     },
     {
