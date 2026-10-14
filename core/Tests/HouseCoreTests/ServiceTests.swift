@@ -269,6 +269,35 @@ final class ServiceTests: XCTestCase {
         XCTAssertTrue(fake.sent.count == 1)
     }
 
+    func testHubLocksAgainWhenTheBoltSlipsBack() async {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fake = FakeService()
+        let hub = DeviceHub(directory: dir, secret: { _ in MemorySecretStore() }, homeKit: fake)
+        hub.lockChecks = [0.05, 0.1]
+        hub.setLinks(from: ["locks": [["id": "door", "link": ["service": "homekit", "id": "K1"]]]])
+
+        let locked = expectation(description: "locked")
+        hub.command(["id": "door", "kind": "lock", "patch": ["locked": true]]) { _ in locked.fulfill() }
+        await fulfillment(of: [locked], timeout: 2)
+        fake.lockState = "unlocked" // the bolt pulls back
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(fake.sent.count, 2, "locks once more, never more than once")
+        XCTAssertEqual(fake.sent.last?.patch["locked"] as? Bool, true)
+
+        // An Unlock right after a Lock cancels the check: the door is never locked behind it.
+        let lockedAgain = expectation(description: "locked again")
+        hub.command(["id": "door", "kind": "lock", "patch": ["locked": true]]) { _ in lockedAgain.fulfill() }
+        await fulfillment(of: [lockedAgain], timeout: 2)
+        let unlocked = expectation(description: "unlocked")
+        hub.command(["id": "door", "kind": "lock", "patch": ["locked": false]]) { _ in unlocked.fulfill() }
+        await fulfillment(of: [unlocked], timeout: 2)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(fake.sent.count, 4)
+        XCTAssertEqual(fake.sent.last?.patch["locked"] as? Bool, false)
+    }
+
     func testSmartLifeDevicesGetAKind() {
         XCTAssertEqual(DeviceHub.smartLifeDevice(["id": "1", "category": "dj", "codes": ["switch_led", "bright_value_v2", "temp_value_v2"]])["kind"] as? String, "light")
         XCTAssertEqual(DeviceHub.smartLifeDevice(["id": "2", "category": "infrared_ac", "codes": ["PowerOn", "T"]])["kind"] as? String, "ac")
@@ -381,6 +410,7 @@ private final class FakeService: DeviceService {
     var sent: [(kind: DeviceKind, id: String, patch: [String: Any])] = []
     var watched: Set<String> = []
     var failNext = false
+    var lockState = "locked"
 
     func devices() async throws -> [ServiceDevice] { [] }
     func read(_ ids: Set<String>) async throws -> [String: DeviceReading] {
@@ -388,7 +418,7 @@ private final class FakeService: DeviceService {
             "L1": DeviceReading(light: ["on": true, "brightness": 0.5]),
             "A1": DeviceReading(ac: ["on": true, "target": 23.0, "roomTemp": 26.0], features: ["modes": ["cool"]]),
             "S1": DeviceReading(temperature: 19.5),
-            "K1": DeviceReading(lock: ["state": "locked"]),
+            "K1": DeviceReading(lock: ["state": lockState]),
         ].filter { ids.contains($0.key) }
     }
     func send(kind: DeviceKind, id: String, patch: [String: Any], state: [String: Any]) async throws {

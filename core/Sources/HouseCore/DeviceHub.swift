@@ -37,6 +37,10 @@ public final class DeviceHub {
     private var refresh: Task<Void, Never>?
     /// The command in flight for each real device; the next one waits for it.
     private var commandTails: [String: Task<Void, Never>] = [:]
+    /// U-Tec locks sometimes pull the bolt back 10-30 s after a Lock. After every Lock the hub
+    /// looks again at these delays and, the first time it finds the door unlocked, locks it once more.
+    var lockChecks: [Double] = [20, 45]
+    private var lockWatch: [String: Task<Void, Never>] = [:]
     private let infrared = InfraredRemote()
 
     /// Called after a command failed in a way that leaves the panel out of step with the
@@ -177,6 +181,7 @@ public final class DeviceHub {
         let patch = message["patch"] as? [String: Any] ?? [:]
         let state = message["state"] as? [String: Any] ?? [:]
         let key = "\(link.service):\(link.id)"
+        lockWatch.removeValue(forKey: key)?.cancel() // a newer command replaces the check
         let previous = commandTails[key]
         commandTails[key] = Task { @MainActor in
             await previous?.value
@@ -185,10 +190,34 @@ public final class DeviceHub {
                 try await service.send(kind: link.kind, id: link.id, patch: patch, state: state)
                 log.write("\(appId) [\(service.title)] \(what) → ok")
                 reply(["ok": true])
+                if link.kind == .lock, patch["locked"] as? Bool == true { watchLock(link, appId: appId, service) }
             } catch {
                 log.write("\(appId) [\(service.title)] \(what) → \(error.localizedDescription)")
                 reply(["error": error.localizedDescription])
                 onStale?()
+            }
+        }
+    }
+
+    /// Checks that a Lock held, and locks once more if the bolt slipped back.
+    private func watchLock(_ link: Link, appId: String, _ service: DeviceService) {
+        let key = "\(link.service):\(link.id)"
+        lockWatch[key] = Task { @MainActor [weak self, lockChecks] in
+            var waited = 0.0, relocked = false
+            for delay in lockChecks {
+                try? await Task.sleep(nanoseconds: UInt64((delay - waited) * 1_000_000_000))
+                waited = delay
+                guard !Task.isCancelled, let self else { return }
+                let state = (try? await service.read([link.id]))?[link.id]?.lock?["state"] as? String
+                guard state == "unlocked", !relocked else { continue }
+                relocked = true
+                do {
+                    try await service.send(kind: link.kind, id: link.id, patch: ["locked": true], state: [:])
+                    self.log.write("\(appId) [\(service.title)] unlocked itself after a Lock → locked again")
+                } catch {
+                    self.log.write("\(appId) [\(service.title)] unlocked itself after a Lock → \(error.localizedDescription)")
+                }
+                self.onStale?()
             }
         }
     }
