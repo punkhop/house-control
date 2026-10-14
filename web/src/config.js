@@ -3,7 +3,7 @@ import { setUnits } from './units.js';
 // Loads and normalises a floor plan ("home.json"). Everything the 3D scene and the UI
 // know about the apartment comes from this one document, so swapping the file swaps the home.
 
-const LIGHT_TYPES = ['ceiling', 'pendant', 'spots', 'floor', 'table', 'strip', 'plug'];
+const LIGHT_TYPES = ['ceiling', 'pendant', 'spots', 'floor', 'table', 'strip', 'plug', 'fan', 'stick', 'softbox', 'star'];
 const WALLS = ['north', 'south', 'east', 'west'];
 
 export class ConfigError extends Error {}
@@ -87,7 +87,10 @@ export function normalize(raw) {
     need(w > 0 && d > 0, `Room "${r.id}" has an empty rect`);
     return { id: r.id, name: r.name || r.id, x, z, w, d, floor: r.floor || 'oak', level: levelOf(r, `Room "${r.id}"`),
       // A room that is not a rectangle is drawn as several: the extra rects name the room they belong to.
-      partOf: r.partOf || null };
+      partOf: r.partOf || null,
+      // A flight of stairs in the room: climb = '-z' | '+z' | '-x' | '+x' (the way you walk up);
+      // from 'below' = the flight coming up from the floor underneath, seen through the stairwell.
+      stairs: r.stairs ? { climb: r.stairs.climb || '-z', from: r.stairs.from || 'floor', landing: r.stairs.landing || 0 } : null };
   });
   for (const r of rooms) need(!r.partOf || rooms.some((o) => o.id === r.partOf && !o.partOf), `Room "${r.id}" is part of unknown room "${r.partOf}"`);
   const roomIds = new Set(rooms.map((r) => r.id));

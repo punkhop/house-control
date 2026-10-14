@@ -73,18 +73,31 @@ const fixtures = {
     };
   },
 
+  // One switch can run several globes: `globes` lists each one's [x, z] offset.
   pendant(cfg, H) {
     const y = cfg.y ?? 1.8;
-    const globe = new THREE.Mesh(new THREE.SphereGeometry(0.17, 32, 20), glowMaterial());
-    globe.position.set(0, y, 0);
+    const offsets = cfg.globes || [[0, 0]];
+    const parts = [];
+    const glow = [];
+    const lights = [];
+    for (const [x, z] of offsets) {
+      const globe = new THREE.Mesh(new THREE.SphereGeometry(cfg.radius ?? 0.17, 32, 20), glowMaterial());
+      globe.position.set(x, y, z);
+      glow.push(globe);
+      parts.push(
+        at(cyl(0.006, 0.006, H - y - 0.15, mat(DARK), 6), x, y + 0.15, z),
+        at(cyl(0.04, 0.05, 0.05, mat(DARK, { rough: 0.4, metal: 0.6 }), 16), x, y + 0.14, z),
+      );
+      const l = spot((cfg.intensity ?? 9) / offsets.length, y - 0.05);
+      l.position.x = x; l.position.z = z;
+      l.target.position.set(x, y - 1.05, z);
+      lights.push(l);
+    }
+    const xs = offsets.map((o) => o[0]);
+    const zs = offsets.map((o) => o[1]);
     return {
-      parts: [
-        at(cyl(0.006, 0.006, H - y - 0.15, mat(DARK), 6), 0, y + 0.15, 0),
-        at(cyl(0.04, 0.05, 0.05, mat(DARK, { rough: 0.4, metal: 0.6 }), 16), 0, y + 0.14, 0),
-      ],
-      glow: [globe],
-      lights: [spot(cfg.intensity ?? 9, y - 0.05)],
-      hit: [0.6, 0.7, 0.6, y],
+      parts, glow, lights,
+      hit: [0.6 + Math.max(...xs) - Math.min(...xs), 0.7, 0.6 + Math.max(...zs) - Math.min(...zs), y],
     };
   },
 
@@ -137,20 +150,105 @@ const fixtures = {
     };
   },
 
+  // An LED strip: a straight run `length` long, or a bent one through `points` ([x, z]
+  // offsets, e.g. an L under two counters).
   strip(cfg) {
     const y = cfg.y ?? 1;
-    const length = cfg.length ?? 1;
-    const n = Math.max(1, Math.round(length / 1.0));
+    const pts = cfg.points || [[-(cfg.length ?? 1) / 2, 0], [(cfg.length ?? 1) / 2, 0]];
+    const glow = [];
     const lights = [];
-    for (let i = 0; i < n; i++) {
-      const x = -length / 2 + (length / n) * (i + 0.5);
-      lights.push(point((cfg.intensity ?? 1.6) / n, y, { shadow: false, distance: 3.2, x, z: 0.05 }));
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x0, z0] = pts[i];
+      const [x1, z1] = pts[i + 1];
+      const len = Math.hypot(x1 - x0, z1 - z0);
+      total += len;
+      const bar = at(box(len, 0.022, 0.022, glowMaterial(), { r: 0.008 }), (x0 + x1) / 2, y - 0.011, (z0 + z1) / 2);
+      bar.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
+      glow.push(bar);
+      const n = Math.max(1, Math.round(len));
+      for (let k = 0; k < n; k++) {
+        const t = (k + 0.5) / n;
+        lights.push(point(1, y, { shadow: false, distance: 3.2, x: x0 + (x1 - x0) * t, z: z0 + (z1 - z0) * t }));
+      }
     }
+    for (const l of lights) l.userData.max = (cfg.intensity ?? 1.6) / lights.length;
+    const xs = pts.map((p) => p[0]);
+    const zs = pts.map((p) => p[1]);
+    return {
+      parts: [], glow, lights,
+      hit: [Math.max(...xs) - Math.min(...xs) + 0.3, 0.4, Math.max(...zs) - Math.min(...zs) + 0.3, y],
+    };
+  },
+
+  // A small black floor fan, on a smart plug: shows it is on, lights nothing.
+  fan(cfg) {
+    const black = mat('#16171b', { rough: 0.6 });
+    const head = at(cyl(0.13, 0.13, 0.08, black, 24), 0, 0.2, 0);
+    head.rotation.x = Math.PI / 2;
+    return {
+      parts: [at(cyl(0.1, 0.12, 0.04, black, 20), 0, 0, 0), at(cyl(0.018, 0.018, 0.14, black, 8), 0, 0.04, 0), head],
+      glow: [at(cyl(0.02, 0.02, 0.01, glowMaterial(), 12), 0, 0.02, 0.11)],
+      lights: [],
+      hit: [0.4, 0.45, 0.4, 0.2],
+    };
+  },
+
+  // A floor stick light (Govee H6076): a slim glowing bar on a small round base.
+  stick(cfg) {
+    const h = cfg.height ?? 1.4;
+    return {
+      parts: [at(cyl(0.11, 0.12, 0.025, mat(DARK, { rough: 0.4, metal: 0.4 }), 24), 0, 0, 0)],
+      glow: [at(box(0.045, h, 0.045, glowMaterial(), { r: 0.018 }), 0, 0.025, 0)],
+      lights: [point(cfg.intensity ?? 2.4, h * 0.6, { x: 0, z: 0.08 })],
+      hit: [0.4, h + 0.1, 0.4, h / 2],
+    };
+  },
+
+  // A studio softbox on a tripod: a big glowing octagon facing +z.
+  softbox(cfg) {
+    const y = cfg.y ?? 1.55;
+    const face = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.02, 8), glowMaterial());
+    face.rotation.x = Math.PI / 2;
+    face.position.set(0, y, 0.12);
+    const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.1, 0.24, 8), mat('#1b1c21', { rough: 0.7 }));
+    shell.rotation.x = -Math.PI / 2;
+    shell.position.set(0, y, 0);
+    const legsOut = [0, 1, 2].map((i) => {
+      const leg = at(cyl(0.008, 0.008, y - 0.1, mat(DARK, { metal: 0.5 }), 6), 0, 0, 0);
+      const a = (i / 3) * Math.PI * 2;
+      leg.position.set(Math.cos(a) * 0.25, 0, Math.sin(a) * 0.25);
+      leg.lookAt(0, y, 0);
+      leg.rotateX(Math.PI / 2);
+      return leg;
+    });
+    return {
+      parts: [shell, at(cyl(0.012, 0.012, y - 0.1, mat(DARK, { metal: 0.5 }), 8), 0, 0.1, 0), ...legsOut],
+      glow: [face],
+      lights: [spot(cfg.intensity ?? 8, y)],
+      hit: [0.9, y + 0.5, 0.6, y / 2 + 0.2],
+    };
+  },
+
+  // A star-shaped lamp: a five-point star standing up, glowing.
+  star(cfg) {
+    const y = cfg.y ?? 0.5;
+    const r = cfg.size ?? 0.22;
+    const shape = new THREE.Shape();
+    for (let i = 0; i < 10; i++) {
+      const a = Math.PI / 2 + (i * Math.PI) / 5;
+      const k = i % 2 ? r * 0.45 : r;
+      if (i) shape.lineTo(Math.cos(a) * k, Math.sin(a) * k); else shape.moveTo(Math.cos(a) * k, Math.sin(a) * k);
+    }
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.06, bevelEnabled: false });
+    geo.translate(0, 0, -0.03);
+    const star = new THREE.Mesh(geo, glowMaterial());
+    star.position.set(0, y + r, 0);
     return {
       parts: [],
-      glow: [at(box(length, 0.022, 0.022, glowMaterial(), { r: 0.008 }), 0, y - 0.011, 0)],
-      lights,
-      hit: [length + 0.2, 0.4, 0.4, y],
+      glow: [star],
+      lights: [point(cfg.intensity ?? 1.5, y + r, { z: 0.15 })],
+      hit: [r * 2 + 0.1, r * 2 + 0.1, 0.3, y + r],
     };
   },
 };

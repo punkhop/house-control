@@ -19,30 +19,73 @@ export const mediaIsOn = (s) => Boolean(s?.on) && s.state !== 'unknown' && s.sta
 
 const Y = 1.1;
 
+// The bodies, standing on y = 0 and facing +z. Each returns the height of its top.
+const BODIES = {
+  // A generic speaker: a box with a cone and a screen strip.
+  speaker(g, glow) {
+    const cone = cyl(0.055, 0.055, 0.012, mat('#3b3f49', { rough: 0.9 }));
+    cone.rotation.x = Math.PI / 2;
+    g.add(
+      at(box(0.2, 0.26, 0.12, mat('#23262e', { rough: 0.55, metal: 0.2 }), { r: 0.03 }), 0, 0, 0),
+      at(box(0.14, 0.035, 0.01, glow, { r: 0.008 }), 0, 0.2, 0.061),
+      at(cone, 0, 0.1, 0.06),
+    );
+    return 0.26;
+  },
+  // Google Home: a fabric-wrapped base under a white cylinder with a slanted top.
+  googleHome(g, glow) {
+    const body = cyl(0.048, 0.048, 0.12, mat('#f2f2ef', { rough: 0.35 }), 32);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.001, 32), glow);
+    cap.position.y = 0.155;
+    cap.rotation.x = -0.25;
+    g.add(at(cyl(0.05, 0.05, 0.05, mat('#7d8086', { rough: 1 }), 32), 0, 0, 0), at(body, 0, 0.04, 0), cap);
+    return 0.17;
+  },
+  // NVIDIA Shield TV Pro: a flat black wedge-ish box with a green light.
+  shield(g, glow) {
+    g.add(
+      at(box(0.16, 0.026, 0.1, mat('#15161a', { rough: 0.3, metal: 0.3 }), { r: 0.006 }), 0, 0, 0),
+      at(box(0.04, 0.004, 0.004, glow, { r: 0 }), 0, 0.013, 0.051),
+    );
+    return 0.03;
+  },
+  // A soundbar: a long low fabric bar.
+  soundbar(g, glow) {
+    g.add(
+      at(box(0.9, 0.06, 0.1, mat('#1d1f24', { rough: 0.9 }), { r: 0.02 }), 0, 0, 0),
+      at(box(0.06, 0.006, 0.004, glow, { r: 0 }), 0, 0.03, 0.051),
+    );
+    return 0.06;
+  },
+  // An AV receiver: a black box with a lit display.
+  receiver(g, glow) {
+    g.add(
+      at(box(0.43, 0.15, 0.33, mat('#17181c', { rough: 0.45, metal: 0.4 }), { r: 0.01 }), 0, 0, 0),
+      at(box(0.16, 0.03, 0.004, glow, { r: 0 }), 0, 0.09, 0.166),
+      at(cyl(0.035, 0.035, 0.02, mat('#2c2e34', { metal: 0.6, rough: 0.3 }), 24), 0.15, 0.075, 0.17),
+    );
+    return 0.15;
+  },
+};
+
 export class MediaUnit {
   constructor(cfg) {
     this.cfg = cfg;
     this.id = cfg.id;
 
     this.group = new THREE.Group();
-    this.group.position.set(cfg.pos[0], Y, cfg.pos[1]);
+    this.group.position.set(cfg.pos[0], cfg.y ?? Y, cfg.pos[1]);
     this.group.rotation.y = THREE.MathUtils.degToRad(cfg.rot);
-    this.group.scale.setScalar(1.7); // readable from the default camera
+    this.group.scale.setScalar(cfg.kind && cfg.kind !== 'speaker' ? 1.3 : 1.7); // readable from the default camera
 
     this.body = new THREE.Group();
-    const shell = mat('#23262e', { rough: 0.55, metal: 0.2 });
     this.glow = new THREE.MeshStandardMaterial({ color: '#1d2027', emissive: MEDIA_COLORS.off, emissiveIntensity: 1.4, roughness: 0.4 });
-    const cone = cyl(0.055, 0.055, 0.012, mat('#3b3f49', { rough: 0.9 }));
-    cone.rotation.x = Math.PI / 2;
-    this.body.add(
-      at(box(0.2, 0.26, 0.12, shell, { r: 0.03 }), 0, 0, 0),
-      at(box(0.14, 0.035, 0.01, this.glow, { r: 0.008 }), 0, 0.2, 0.061),
-      at(cone, 0, 0.1, 0.06),
-    );
+    // Each kind is drawn like the real thing; `top` is the height its level bars stand on.
+    const top = BODIES[cfg.kind || 'speaker'](this.body, this.glow);
     // Level bars on top: low when quiet, raised in a stagger while playing.
     this.bars = [-0.05, 0, 0.05].map((x) => {
       const bar = box(0.03, 0.08, 0.03, this.glow, { r: 0.006 });
-      bar.position.set(x, 0.26, 0);
+      bar.position.set(x, top, 0);
       this.body.add(bar);
       return bar;
     });

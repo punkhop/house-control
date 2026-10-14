@@ -64,6 +64,40 @@ function wallSegments(config) {
   return segments;
 }
 
+// A straight flight of stairs filling the room: solid steps from the low end up the way
+// it climbs, rising one storey (or, from below, dropping one storey into the stairwell).
+function flight(room, H) {
+  const g = new THREE.Group();
+  const { climb, from, landing } = room.stairs;
+  const alongZ = climb.endsWith('z');
+  const up = climb.startsWith('-') ? -1 : 1;
+  const len = (alongZ ? room.d : room.w) - landing;
+  const wide = (alongZ ? room.w : room.d) - 0.06;
+  const n = Math.max(4, Math.round(H / 0.19));
+  const tread = len / n;
+  const rise = H / n;
+  const base = from === 'below' ? -H : 0;
+  const start = alongZ ? room.z : room.x;
+  const lowEnd = up > 0 ? start : start + len + landing;
+  const wood = mat('#8a6a4a', { rough: 0.7 });
+  const nose = mat('#5d4632', { rough: 0.6 });
+  for (let i = 0; i < n; i++) {
+    const top = base + rise * (i + 1);
+    const c = lowEnd + up * tread * (i + 0.5);
+    const h = top - (from === 'below' ? Math.max(base, top - 1.2) : 0);
+    const step = alongZ ? box(wide, h, tread, wood, { r: 0 }) : box(tread, h, wide, wood, { r: 0 });
+    const cx = alongZ ? room.x + room.w / 2 : c;
+    const cz = alongZ ? c : room.z + room.d / 2;
+    at(step, cx, top - h, cz);
+    const lip = alongZ ? box(wide, 0.02, 0.03, nose, { r: 0 }) : box(0.03, 0.02, wide, nose, { r: 0 });
+    at(lip, alongZ ? cx : c - up * tread / 2, top - 0.02, alongZ ? c - up * tread / 2 : cz);
+    step.castShadow = step.receiveShadow = true;
+    g.add(step, lip);
+  }
+  g.userData = { kind: 'room', id: room.partOf || room.id };
+  return g;
+}
+
 export function buildHouse(config, camDir) {
   const group = new THREE.Group();
   const floors = [];
@@ -71,17 +105,28 @@ export function buildHouse(config, camDir) {
   const Hi = Math.min(config.interiorWallHeight, H);
   const { minX, minZ, maxX, maxZ } = config.bounds;
 
-  // Plinth the model stands on.
-  const plinth = box(maxX - minX + 0.7, 0.3, maxZ - minZ + 0.7, mat('#141927', { rough: 0.9 }), { r: 0.12 });
-  at(plinth, (minX + maxX) / 2, -0.305, (minZ + maxZ) / 2);
-  plinth.receiveShadow = true;
-  group.add(plinth);
+  // Plinth the model stands on, with a hole where a stairwell drops to the floor below.
+  const well = config.rooms.find((r) => r.stairs?.from === 'below');
+  const x0 = minX - 0.35, x1 = maxX + 0.35, z0 = minZ - 0.35, z1 = maxZ + 0.35;
+  const slabs = well
+    ? [[x0, z0, x1, well.z], [x0, well.z + well.d, x1, z1], [x0, well.z, well.x, well.z + well.d], [well.x + well.w, well.z, x1, well.z + well.d]]
+    : [[x0, z0, x1, z1]];
+  for (const [a, b, c, d] of slabs) {
+    if (c - a < EPS || d - b < EPS) continue;
+    const plinth = box(c - a, 0.3, d - b, mat('#141927', { rough: 0.9 }), { r: well ? 0 : 0.12 });
+    at(plinth, (a + c) / 2, -0.305, (b + d) / 2);
+    plinth.receiveShadow = true;
+    group.add(plinth);
+  }
 
   for (const room of config.rooms) {
     const floor = floorMesh(room, room.floor);
     floor.userData = { kind: 'room', id: room.partOf || room.id };
+    // A stairwell has no floor: the flight drops through it.
+    if (room.stairs?.from === 'below') floor.visible = false;
     floors.push(floor);
     group.add(floor);
+    if (room.stairs) group.add(flight(room, H));
   }
 
   const wallBody = mat('#e7e3db', { rough: 0.95 });

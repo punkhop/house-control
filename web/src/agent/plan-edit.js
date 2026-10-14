@@ -337,6 +337,14 @@ export const FURNITURE_GUIDE = {
   desk: 'desk; option width',
   wardrobe: 'wardrobe; options width, height',
   bookshelf: 'open bookshelf with books; options width, height',
+  screen: 'projector screen hung on the wall it backs onto; options width, bottom (height of its lower edge)',
+  projector: 'ceiling-mounted projector, lens facing +z; options ceiling, drop',
+  block: 'plain block (subwoofer, cube side table, ottoman); options size [w, d], height, color, top (top colour), soft',
+  fireplace: 'white fireplace with mantel and hearth; set rot 45 / -45 / 135 / -135 to sit across a corner; options width',
+  tvArm: 'TV on a swing-out wall arm, nothing under it; backs onto the wall; options width, height, reach',
+  shower: 'glass shower with tray; options size [w, d], side (glass on the right too)',
+  mirror: 'wall mirror backing onto the wall; options width, height, bottom',
+  table: 'plain table with four legs; options width, depth, color',
 };
 
 export function furnitureCatalog() {

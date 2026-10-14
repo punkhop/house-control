@@ -143,10 +143,10 @@ const builders = {
     return g;
   },
 
-  island({ width = 2.0, stools = 3 }) {
+  island({ width = 2.0, depth = 0.86, stools = 3 }) {
     const g = group(
-      at(box(width - 0.12, 0.88, 0.62, mat('#39424f', { rough: 0.7 }), { r: 0.015 }), 0, 0, -0.04),
-      at(box(width, 0.05, 0.86, mat('#e9e7e2', { rough: 0.3 }), { r: 0.015 }), 0, 0.88, 0),
+      at(box(width - 0.12, 0.88, depth - 0.24, mat('#39424f', { rough: 0.7 }), { r: 0.015 }), 0, 0, -0.04),
+      at(box(width, 0.05, depth, mat('#e9e7e2', { rough: 0.3 }), { r: 0.015 }), 0, 0.88, 0),
     );
     for (let i = 0; i < stools; i++) {
       const x = -width / 2 + (width / stools) * (i + 0.5);
@@ -159,24 +159,30 @@ const builders = {
     return g;
   },
 
-  kitchen({ width = 3, upper = true }) {
+  // A run of base cabinets with a counter; `hob` and `sink` sit at -1/4 and +1/4 of the run
+  // (or any fraction along it), uppers on the wall behind when `upper`.
+  kitchen({ width = 3, upper = true, hob = true, sink = true }) {
     const front = mat('#e4e1da', { rough: 0.6 });
     const seam = mat('#b9b6ae');
     const n = Math.max(2, Math.round(width / 0.6));
+    const hx = typeof hob === 'number' ? hob * width : -width / 4;
+    const sx = typeof sink === 'number' ? sink * width : width / 4;
     const g = group(
       at(box(width, 0.86, 0.6, front, { r: 0.008 }), 0, 0, 0),
       ...doorLines(width, 0.78, 0.06, 0.3, n, seam),
       at(box(width + 0.02, 0.04, 0.63, mat('#33363d', { rough: 0.35 }), { r: 0.008 }), 0, 0.86, 0.005),
-      at(box(0.58, 0.012, 0.5, mat('#0c0d10', { rough: 0.15 }), { r: 0 }), -width / 4, 0.9, 0),
-      at(box(0.5, 0.012, 0.38, mat(METAL, { rough: 0.3, metal: 0.9 }), { r: 0 }), width / 4, 0.9, 0.02),
-      at(cyl(0.015, 0.015, 0.24, mat(METAL, { rough: 0.25, metal: 0.9 }), 10), width / 4, 0.9, -0.22),
+    );
+    if (hob !== false) g.add(at(box(0.58, 0.012, 0.5, mat('#0c0d10', { rough: 0.15 }), { r: 0 }), hx, 0.9, 0));
+    if (sink !== false) g.add(
+      at(box(0.5, 0.012, 0.38, mat(METAL, { rough: 0.3, metal: 0.9 }), { r: 0 }), sx, 0.9, 0.02),
+      at(cyl(0.015, 0.015, 0.24, mat(METAL, { rough: 0.25, metal: 0.9 }), 10), sx, 0.9, -0.22),
     );
     if (upper) {
       g.add(
         at(box(width, 0.72, 0.35, front, { r: 0.008 }), 0, 1.48, -0.125),
         ...doorLines(width, 0.66, 1.51, 0.05, n, seam),
-        at(box(0.7, 0.1, 0.42, mat('#2f3239', { rough: 0.4, metal: 0.4 }), { r: 0.008 }), -width / 4, 1.42, -0.09),
       );
+      if (hob !== false) g.add(at(box(0.7, 0.1, 0.42, mat('#2f3239', { rough: 0.4, metal: 0.4 }), { r: 0.008 }), hx, 1.42, -0.09));
     }
     return g;
   },
@@ -320,6 +326,89 @@ const builders = {
     }
     return g;
   },
+
+  // A projector screen hung on the wall it backs onto: white surface, thin black border.
+  screen({ width = 2.45, bottom = 0.7 }) {
+    const h = width * 0.5625;
+    return group(
+      at(box(width + 0.08, h + 0.08, 0.03, mat(BLACK, { rough: 0.6 }), { r: 0.006 }), 0, bottom - 0.04, 0),
+      at(box(width, h, 0.01, mat('#f4f4f2', { rough: 0.9, emissive: '#3a3f4a', emissiveIntensity: 0.25 }), { r: 0 }), 0, bottom, 0.02),
+    );
+  },
+
+  // A ceiling-mounted projector: drop pole from the ceiling, white body, lens facing +z.
+  projector({ ceiling = 2.24, drop = 0.3 }) {
+    const y = ceiling - drop;
+    const lens = at(cyl(0.045, 0.05, 0.05, mat('#20232a', { rough: 0.2, metal: 0.4 })), 0.07, y + 0.06, 0.15);
+    lens.rotation.x = Math.PI / 2;
+    return group(
+      at(cyl(0.015, 0.015, drop - 0.1, mat(BLACK, { rough: 0.4, metal: 0.5 }), 8), 0, y + 0.12, 0),
+      at(box(0.33, 0.12, 0.28, mat(WHITE, { rough: 0.5 }), { r: 0.025 }), 0, y, 0),
+      lens,
+    );
+  },
+
+  // Any plain block: a subwoofer, a cube side table, an ottoman. `top` paints the top face.
+  block({ size = [0.5, 0.5], height = 0.45, color = '#2a2c33', top = null, soft = false }) {
+    const [w, d] = size;
+    const body = mat(color, { rough: soft ? 1 : 0.6 });
+    const g = group(at(box(w, top ? height - 0.04 : height, d, body, { r: soft ? 0.06 : 0.012 }), 0, 0, 0));
+    if (top) g.add(at(box(w + 0.01, 0.04, d + 0.01, mat(top, { rough: 0.4 }), { r: 0.008 }), 0, height - 0.04, 0));
+    return g;
+  },
+
+  // A white corner fireplace, set across the corner it faces out of: surround, mantel,
+  // raised hearth and a glowing firebox.
+  fireplace({ width = 1.2 }) {
+    const white = mat(WHITE, { rough: 0.5 });
+    return group(
+      at(box(width + 0.2, 0.2, 0.55, white, { r: 0.01 }), 0, 0, 0.05),
+      at(box(width, 1.0, 0.35, white, { r: 0.01 }), 0, 0.2, -0.05),
+      at(box(width + 0.16, 0.06, 0.45, white, { r: 0.01 }), 0, 1.2, -0.02),
+      at(box(width * 0.55, 0.5, 0.05, mat('#121316', { rough: 0.9 }), { r: 0 }), 0, 0.3, 0.11),
+      at(box(width * 0.4, 0.08, 0.06, mat('#ff8a3d', { emissive: '#ff6a1a', emissiveIntensity: 0.8 }), { r: 0.02 }), 0, 0.32, 0.1),
+    );
+  },
+
+  // A TV on a swing-out arm off the wall it backs onto: no furniture under it.
+  tvArm({ width = 1.45, height = 1.3, reach = 0.3 }) {
+    const sh = width * 0.5625;
+    const black = mat(BLACK, { rough: 0.4 });
+    const screen = new THREE.MeshStandardMaterial({ color: '#05070c', roughness: 0.25, emissive: '#27407a', emissiveIntensity: 0.35 });
+    return group(
+      at(box(0.2, 0.3, 0.02, black, { r: 0.004 }), 0, height - 0.15, 0),
+      at(box(0.05, 0.05, reach, black, { r: 0.01 }), 0, height - 0.025, reach / 2),
+      at(box(width, sh, 0.04, black, { r: 0.008 }), 0, height - sh / 2, reach),
+      at(box(width - 0.03, sh - 0.03, 0.01, screen, { r: 0 }), 0, height - sh / 2 + 0.015, reach + 0.021),
+    );
+  },
+
+  // A glass shower: tray, a glass panel along the open front (and the right side when
+  // `side`), and a head on the back wall.
+  shower({ size = [0.9, 0.9], side = false }) {
+    const [w, d] = size;
+    const glass = mat('#bfe3f2', { rough: 0.05, opacity: 0.25 });
+    const g = group(
+      at(box(w, 0.06, d, mat(WHITE, { rough: 0.3 }), { r: 0.01 }), 0, 0, 0),
+      at(box(w, 1.9, 0.012, glass, { r: 0 }), 0, 0.06, d / 2),
+      at(cyl(0.08, 0.08, 0.015, mat(METAL, { rough: 0.2, metal: 0.9 })), 0, 2.0, -d / 2 + 0.15),
+    );
+    if (side) g.add(at(box(0.012, 1.9, d, glass, { r: 0 }), w / 2, 0.06, 0));
+    return g;
+  },
+
+  // A wall mirror, backing onto the wall.
+  mirror({ width = 0.8, height = 0.9, bottom = 1.0 }) {
+    return group(at(box(width, height, 0.02, new THREE.MeshStandardMaterial({ color: '#b9c7dc', roughness: 0.12, metalness: 0.9 }), { r: 0.01 }), 0, bottom, 0));
+  },
+
+  // A plain table: top and four legs.
+  table({ width = 1.2, depth = 0.8, color = WHITE }) {
+    return group(
+      at(box(width, 0.04, depth, mat(color, { rough: 0.35 }), { r: 0.01 }), 0, 0.72, 0),
+      ...legs(width, depth, 0.72, mat(color, { rough: 0.4 }), 0.05, 0.022),
+    );
+  },
 };
 
 export const FURNITURE_TYPES = Object.keys(builders);
@@ -335,7 +424,7 @@ export function footprint(item) {
     case 'tv': return [w || 1.7, 0.4];
     case 'sideboard': return [w || 1.6, 0.42];
     case 'diningSet': return [w || 1.8, 1.9];
-    case 'island': return [w || 2, 1.1];
+    case 'island': return [w || 2, item.depth || 0.86];
     case 'kitchen': return [w || 3, 0.62];
     case 'fridge': return [0.7, 0.68];
     case 'bed': return [(w || 1.6) + 0.1, 2.14];
@@ -348,6 +437,14 @@ export function footprint(item) {
     case 'desk': return [w || 1.4, 0.65];
     case 'wardrobe': return [w || 1.6, 0.6];
     case 'bookshelf': return [w || 1, 0.32];
+    case 'screen': return [w || 2.45, 0.05];
+    case 'projector': return [0.33, 0.28];
+    case 'block': return item.size || [0.5, 0.5];
+    case 'fireplace': return [(w || 1.2) + 0.2, 0.6];
+    case 'tvArm': return [w || 1.45, 0.35];
+    case 'shower': return item.size || [0.9, 0.9];
+    case 'mirror': return [w || 0.8, 0.03];
+    case 'table': return [w || 1.2, item.depth || 0.8];
     default: return [0.6, 0.6];
   }
 }
