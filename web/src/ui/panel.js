@@ -7,6 +7,7 @@ import { lightColor } from '../three/lights.js';
 import { MODE_COLORS } from '../three/ac.js';
 import { LOCK_COLORS } from '../three/lock.js';
 import { MEDIA_COLORS, mediaIsOn } from '../three/media.js';
+import { SENSOR_COLORS } from '../three/sensor.js';
 import { AC_SWINGS } from '../store.js';
 import { haptic, isPhone } from '../bridge.js';
 
@@ -43,6 +44,8 @@ const MEDIA_LABEL = {
 function nowPlaying(s) {
   return [s.title, s.artist].filter(Boolean).join(' — ') || s.app || s.source || null;
 }
+
+const SENSOR_LABEL = { open: 'Open', closed: 'Closed', unknown: 'Checking…', unavailable: 'Unavailable' };
 
 function mediaStatus(s) {
   if (!mediaIsOn(s)) return MEDIA_LABEL[s.state] || 'Off';
@@ -314,6 +317,24 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     };
   }
 
+  // Read only: the tile shows whether the door or window is open, and does nothing when tapped.
+  function sensorTile(cfg) {
+    const sub = h('div.tile-sub');
+    const bubble = h('div.bubble');
+    const el = h('div.tile.sensor', { 'aria-label': cfg.name }, bubble, h('div.tile-text', h('div.tile-name', cfg.name), sub));
+    let shown = null;
+    return {
+      el, cfg, kind: 'sensor',
+      update() {
+        const s = state.sensors[cfg.id].state;
+        el.classList.toggle('on', s === 'open');
+        el.style.setProperty('--c', SENSOR_COLORS[s] || SENSOR_COLORS.unknown);
+        if (shown !== s) { bubble.replaceChildren(icon(s === 'open' ? 'door' : 'doorClosed', 19)); shown = s; }
+        sub.textContent = ui.room === 'all' && !isPhone ? `${SENSOR_LABEL[s]} · ${roomName.get(cfg.room)}` : SENSOR_LABEL[s];
+      },
+    };
+  }
+
   // Tap opens the sheet; play or pause and power sit on the tile, as the AC's stepper and power do.
   function mediaTile(cfg) {
     const sub = h('div.tile-sub');
@@ -348,6 +369,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   for (const cfg of config.locks) tiles.set(cfg.id, lockTile(cfg));
   for (const cfg of config.media) tiles.set(cfg.id, mediaTile(cfg));
+  for (const cfg of config.sensors) tiles.set(cfg.id, sensorTile(cfg));
   for (const cfg of config.acs) tiles.set(cfg.id, acTile(cfg));
   for (const cfg of config.lights) tiles.set(cfg.id, lightTile(cfg));
 
@@ -368,6 +390,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       if (!devices.length) continue;
       if (ui.room === 'all') nodes.push(h('div.group-label', room.name));
       devices.filter((t) => t.kind === 'lock').forEach(add);
+      devices.filter((t) => t.kind === 'sensor').forEach(add);
       devices.filter((t) => t.kind === 'ac').forEach(add);
       devices.filter((t) => t.kind === 'media').forEach(add);
       devices.filter((t) => t.kind === 'light').forEach(add);
@@ -665,6 +688,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     } else if (hit.kind === 'media') {
       const s = state.media[hit.id];
       name = store.mediaCfg.get(hit.id).name; status = mediaStatus(s); on = mediaIsOn(s); color = MEDIA_COLORS[s.state] || MEDIA_COLORS.on;
+    } else if (hit.kind === 'sensor') {
+      const s = state.sensors[hit.id].state;
+      name = store.sensorCfg.get(hit.id).name; status = SENSOR_LABEL[s]; on = s === 'open'; color = SENSOR_COLORS[s];
     } else if (hit.kind === 'lock') {
       const s = state.locks[hit.id].state;
       name = store.lockCfg.get(hit.id).name; status = LOCK_LABEL[s]; on = s !== 'unknown' && s !== 'unavailable'; color = LOCK_COLORS[s];

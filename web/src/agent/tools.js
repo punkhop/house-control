@@ -61,6 +61,9 @@ export function createAgent({ store, config, raw, render, onAction }) {
   // An assistant can lock a door (set_locks) but never unlock one: that stays a tap in the panel.
   const lockJSON = (cfg) => ({ id: cfg.id, name: cfg.name, room: cfg.room, real: isLinked(cfg), state: state.locks[cfg.id].state });
 
+  // Read only: an assistant can say whether a door or window is open.
+  const sensorJSON = (cfg) => ({ id: cfg.id, name: cfg.name, room: cfg.room, real: isLinked(cfg), state: state.sensors[cfg.id].state });
+
   // An assistant can read a media player and pause it or switch it off; nothing that makes noise.
   function mediaState(cfg, s = state.media[cfg.id]) {
     if (!s.on || ['unknown', 'unavailable'].includes(s.state)) return s.state === 'standby' ? 'off' : s.state;
@@ -83,19 +86,21 @@ export function createAgent({ store, config, raw, render, onAction }) {
     const scene = config.scenes.find((s) => s.id === state.scene);
     const lines = [
       `Home "${config.name}": ${config.rooms.length} rooms, ${config.lights.length} lights (${lightsOn} on), `
-      + `${config.acs.length} air conditioners (${acsOn} running)${config.locks.length ? `, ${config.locks.length} door locks` : ''}${config.media.length ? `, ${config.media.length} media players` : ''}.${scene ? ` Active scene: ${scene.name}.` : ''}`,
+      + `${config.acs.length} air conditioners (${acsOn} running)${config.locks.length ? `, ${config.locks.length} door locks` : ''}${config.media.length ? `, ${config.media.length} media players` : ''}${config.sensors.length ? `, ${config.sensors.length} door and window sensors` : ''}.${scene ? ` Active scene: ${scene.name}.` : ''}`,
     ];
     for (const room of config.rooms) {
       const lights = config.lights.filter((l) => l.room === room.id);
       const acs = config.acs.filter((a) => a.room === room.id);
       const locks = config.locks.filter((k) => k.room === room.id);
       const media = config.media.filter((m) => m.room === room.id);
-      if (!lights.length && !acs.length && !locks.length && !media.length) { lines.push('', `${room.name} [${room.id}] — no devices`); continue; }
+      const sensors = config.sensors.filter((c) => c.room === room.id);
+      if (!lights.length && !acs.length && !locks.length && !media.length && !sensors.length) { lines.push('', `${room.name} [${room.id}] — no devices`); continue; }
       lines.push('', `${room.name} [${room.id}]`);
       for (const l of lights) lines.push(`  • ${l.name} [${l.id}] — light (${l.type}; ${lightAbilities(l)}): ${lightState(l)}`);
       for (const a of acs) lines.push(`  • ${a.name} [${a.id}] — air conditioner (${a.min}–${a.max}°C): ${acState(a)}`);
       for (const k of locks) lines.push(`  • ${k.name} [${k.id}] — door lock (can lock, not unlock): ${state.locks[k.id].state}`);
       for (const m of media) lines.push(`  • ${m.name} [${m.id}] — media player (can pause or switch off): ${mediaState(m)}`);
+      for (const c of sensors) lines.push(`  • ${c.name} [${c.id}] — door or window sensor (read only): ${state.sensors[c.id].state}`);
     }
     if (config.scenes.length) {
       lines.push('', `Scenes: ${config.scenes.map((s) => `${s.name} [${s.id}]`).join(', ')}`);
@@ -113,6 +118,7 @@ export function createAgent({ store, config, raw, render, onAction }) {
         acs: config.acs.filter((a) => a.room === r.id).map(acJSON),
         locks: config.locks.filter((k) => k.room === r.id).map(lockJSON),
         media: config.media.filter((m) => m.room === r.id).map(mediaJSON),
+        sensors: config.sensors.filter((c) => c.room === r.id).map(sensorJSON),
       })),
       scenes: config.scenes.map((s) => ({ id: s.id, name: s.name })),
     };

@@ -156,7 +156,7 @@ export async function bootEditor(root) {
   }
 
   function previewStore(cfg) {
-    const state = { lights: {}, acs: {}, locks: {}, media: {} };
+    const state = { lights: {}, acs: {}, locks: {}, media: {}, sensors: {} };
     for (const l of cfg.lights) state.lights[l.id] = { on: previewLights, brightness: 0.85, temp: 3200, color: l.color || null };
     for (const a of cfg.acs) state.acs[a.id] = { on: previewLights, mode: 'cool', fan: 'auto', swing: 'swing', sleep: false, target: 23 };
     return { state, on: () => () => {} };

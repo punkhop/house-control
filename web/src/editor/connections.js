@@ -13,7 +13,7 @@ const LOOK = {
   hue: { icon: 'bulb', tint: '#c38bff', blurb: 'A Hue Bridge on this network. No account needed' },
   homekit: { icon: 'home', tint: '#ffb340', blurb: 'HomeKit and Matter accessories, through your iPhone' },
 };
-const KIND_TITLES = { light: 'Lights and plugs', ac: 'Air conditioners', lock: 'Door locks', media: 'Media players', sensor: 'Temperature sensors' };
+const KIND_TITLES = { light: 'Lights and plugs', ac: 'Air conditioners', lock: 'Door locks', media: 'Media players', contact: 'Door and window sensors', sensor: 'Temperature sensors' };
 
 export function createConnections({ rerender, toast, usedBy, onOpen }) {
   const boot = window.__HOUSE_BOOT__ || {};
@@ -105,7 +105,7 @@ export function createConnections({ rerender, toast, usedBy, onOpen }) {
     if (!state.devices) return null;
     if (!list.length) return h('p.note', 'Connected, but no lamps, air conditioners or temperature sensors were found.');
     const used = usedBy();
-    const groups = ['light', 'ac', 'lock', 'media', 'sensor'].map((kind) => [kind, list.filter((d) => d.kind === kind)]).filter(([, l]) => l.length);
+    const groups = ['light', 'ac', 'lock', 'media', 'contact', 'sensor'].map((kind) => [kind, list.filter((d) => d.kind === kind)]).filter(([, l]) => l.length);
     return h('div.devices-list', groups.map(([kind, items]) => [
       h('h3', `${KIND_TITLES[kind]} · ${items.length}`),
       items.map((d) => h('div.device',

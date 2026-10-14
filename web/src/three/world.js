@@ -10,6 +10,7 @@ import { LightUnit } from './lights.js';
 import { ACUnit } from './ac.js';
 import { LockUnit } from './lock.js';
 import { MediaUnit } from './media.js';
+import { SensorUnit } from './sensor.js';
 
 export const STAGE_BG = '#0a0e1a';
 
@@ -85,6 +86,12 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     media.set(cfg.id, unit);
     floorGroups[cfg.level].add(unit.group);
   }
+  const sensors = new Map();
+  for (const cfg of config.sensors) {
+    const unit = new SensorUnit(cfg);
+    sensors.set(cfg.id, unit);
+    floorGroups[cfg.level].add(unit.group);
+  }
   let hitTargets = [];
   function showLevel(n) {
     level = n;
@@ -94,6 +101,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
       ...[...acs.values()].filter((u) => u.cfg.level === n).map((u) => u.hit),
       ...[...locks.values()].filter((u) => u.cfg.level === n).map((u) => u.hit),
       ...[...media.values()].filter((u) => u.cfg.level === n).map((u) => u.hit),
+      ...[...sensors.values()].filter((u) => u.cfg.level === n).map((u) => u.hit),
       ...floorGroups[n].userData.floors,
     ];
   }
@@ -220,6 +228,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     for (const [id, unit] of acs) unit.apply(store.state.acs[id], opts);
     for (const [id, unit] of locks) unit.apply(store.state.locks[id], opts);
     for (const [id, unit] of media) unit.apply(store.state.media[id], opts);
+    for (const [id, unit] of sensors) unit.apply(store.state.sensors[id], opts);
     wake();
   }
 
@@ -229,6 +238,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     else if (change.type === 'ac') acs.get(change.id)?.apply(store.state.acs[change.id]);
     else if (change.type === 'lock') locks.get(change.id)?.apply(store.state.locks[change.id]);
     else if (change.type === 'media') media.get(change.id)?.apply(store.state.media[change.id]);
+    else if (change.type === 'sensor') sensors.get(change.id)?.apply(store.state.sensors[change.id]);
     else syncAll();
     wake();
   });
@@ -252,7 +262,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
   }
 
   function unitOf(t) {
-    return t?.kind === 'light' ? lights.get(t.id) : t?.kind === 'ac' ? acs.get(t.id) : t?.kind === 'lock' ? locks.get(t.id) : t?.kind === 'media' ? media.get(t.id) : null;
+    return t?.kind === 'light' ? lights.get(t.id) : t?.kind === 'ac' ? acs.get(t.id) : t?.kind === 'lock' ? locks.get(t.id) : t?.kind === 'media' ? media.get(t.id) : t?.kind === 'sensor' ? sensors.get(t.id) : null;
   }
 
   function screenAnchor(t) {
@@ -370,6 +380,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     for (const unit of acs.values()) active = unit.update(dt) || active;
     for (const unit of locks.values()) active = unit.update(dt) || active;
     for (const unit of media.values()) active = unit.update(dt) || active;
+    for (const unit of sensors.values()) active = unit.update(dt) || active;
     if (shadowFrames > 0) { renderer.shadowMap.needsUpdate = true; shadowFrames--; active = true; }
     if (active || awake > 0) {
       composer.render(dt);
@@ -402,6 +413,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     acs,
     locks,
     media,
+    sensors,
 
     setInsets(top, bottom) { topInset = top; bottomInset = bottom; resize(); },
     resize,
@@ -424,7 +436,8 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
         : next?.kind === 'ac' ? acs.get(next.id)?.cfg.level
           : next?.kind === 'light' ? lights.get(next.id)?.cfg.level
             : next?.kind === 'lock' ? locks.get(next.id)?.cfg.level
-              : next?.kind === 'media' ? media.get(next.id)?.cfg.level : undefined;
+              : next?.kind === 'media' ? media.get(next.id)?.cfg.level
+                : next?.kind === 'sensor' ? sensors.get(next.id)?.cfg.level : undefined;
       if (on !== undefined && on !== level) { showLevel(on); shadowFrames = 3; }
       rig.focus = next;
       rig.zoom = 1;
@@ -473,6 +486,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
         for (const unit of acs.values()) unit.update(0.05);
         for (const unit of locks.values()) unit.update(0.05);
         for (const unit of media.values()) unit.update(0.05);
+        for (const unit of sensors.values()) unit.update(0.05);
       }
       renderer.shadowMap.needsUpdate = true;
       composer.render(0);

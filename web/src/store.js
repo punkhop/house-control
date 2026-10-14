@@ -35,14 +35,23 @@ function defaultMedia(cfg) {
 // What a media player reports. Fields it leaves out (nothing playing, off) are cleared.
 const MEDIA_FIELDS = ['state', 'on', 'volume', 'muted', 'source', 'sources', 'title', 'artist', 'app', 'can'];
 
+// A linked contact sensor has no known state until it reports one; a simulated one starts closed.
+function defaultSensor(cfg) {
+  return { state: cfg.link?.id ? 'unknown' : 'closed' };
+}
+
+export const SENSOR_STATES = ['open', 'closed', 'unknown', 'unavailable'];
+
 export function createStore(config) {
   const listeners = new Set();
   const lightCfg = new Map(config.lights.map((l) => [l.id, l]));
   const acCfg = new Map(config.acs.map((a) => [a.id, a]));
   const lockCfg = new Map(config.locks.map((k) => [k.id, k]));
   const mediaCfg = new Map(config.media.map((m) => [m.id, m]));
+  const sensorCfg = new Map(config.sensors.map((c) => [c.id, c]));
 
-  const state = { lights: {}, acs: {}, locks: {}, media: {}, scene: null };
+  const state = { lights: {}, acs: {}, locks: {}, media: {}, sensors: {}, scene: null };
+  for (const c of config.sensors) state.sensors[c.id] = defaultSensor(c);
   for (const k of config.locks) state.locks[k.id] = defaultLock(k);
   for (const m of config.media) state.media[m.id] = defaultMedia(m);
   for (const l of config.lights) state.lights[l.id] = defaultLight(l);
@@ -79,7 +88,7 @@ export function createStore(config) {
       post('summary', summary());
       // The native shell passes this on to its other views of the same home (the panel
       // and the island each run their own store), which adopt it without re-sending.
-      if (!change.adopted) post('state', { lights: state.lights, acs: state.acs, locks: state.locks, media: state.media, scene: state.scene, source: change.source ?? store.source ?? null });
+      if (!change.adopted) post('state', { lights: state.lights, acs: state.acs, locks: state.locks, media: state.media, sensors: state.sensors, scene: state.scene, source: change.source ?? store.source ?? null });
     }
   }
 
@@ -204,6 +213,14 @@ export function createStore(config) {
     return true;
   }
 
+  // Read only: a contact sensor only ever reports.
+  function writeSensor(id, patch) {
+    const cur = state.sensors[id];
+    if (!cur || !SENSOR_STATES.includes(patch.state) || patch.state === cur.state) return false;
+    cur.state = patch.state;
+    return true;
+  }
+
   // The panel asks for power, play or pause, volume, mute or an input; the player reports the rest.
   function writeMedia(id, patch, { remote = false } = {}) {
     const cur = state.media[id];
@@ -257,6 +274,7 @@ export function createStore(config) {
     acCfg,
     lockCfg,
     mediaCfg,
+    sensorCfg,
     summary,
     /** Set by the UI: called with (device id, message) when a real device refuses a change. */
     onDeviceError: null,
@@ -313,7 +331,7 @@ export function createStore(config) {
     },
 
     /** Reports the state again, for a view that has only just started. */
-    share() { post('state', { lights: state.lights, acs: state.acs, locks: state.locks, media: state.media, scene: state.scene }); },
+    share() { post('state', { lights: state.lights, acs: state.acs, locks: state.locks, media: state.media, sensors: state.sensors, scene: state.scene }); },
 
     // The state of another view of this home (see emit). Nothing goes to the devices:
     // the view where the change was made has already sent it.
@@ -323,6 +341,7 @@ export function createStore(config) {
       for (const [id, s] of Object.entries(other.acs || {})) any = writeAC(id, s, { remote: true }) || any;
       for (const [id, s] of Object.entries(other.locks || {})) any = writeLock(id, s, { remote: true }) || any;
       for (const [id, s] of Object.entries(other.media || {})) any = writeMedia(id, s, { remote: true }) || any;
+      for (const [id, s] of Object.entries(other.sensors || {})) any = writeSensor(id, s) || any;
       const scene = other.scene ?? null;
       if (scene !== state.scene) { state.scene = scene; any = true; }
       if (any) emit({ type: 'bulk', remote: true, adopted: true, source: other.source || null });
@@ -335,6 +354,7 @@ export function createStore(config) {
       for (const [id, patch] of Object.entries(update.acs || {})) any = writeAC(id, patch, { remote: true }) || any;
       for (const [id, patch] of Object.entries(update.locks || {})) any = writeLock(id, patch, { remote: true }) || any;
       for (const [id, patch] of Object.entries(update.media || {})) any = writeMedia(id, patch, { remote: true }) || any;
+      for (const [id, patch] of Object.entries(update.sensors || {})) any = writeSensor(id, patch) || any;
       for (const [id, f] of Object.entries(update.features || {})) {
         if (!state.acs[id] || JSON.stringify(features[id]) === JSON.stringify(f)) continue;
         features[id] = f;
