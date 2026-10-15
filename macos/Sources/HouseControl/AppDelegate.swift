@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return agent
     }()
     private var lastSummary: [String: Any] = [:]
-    /// The same home as a full page in a browser on this Mac: http://localhost:3017.
+    /// The same home as a full page in a browser on this Mac: http://localhost:4821.
     private lazy var browser = BrowserBridge(root: WebHost.assetRoot)
     private lazy var browserServer = LoopbackHTTPServer { [unowned self] request in await self.browser.handle(request) }
 

@@ -1,6 +1,6 @@
 import Foundation
 
-/// House Control as a full page in a browser on this Mac (http://localhost:3017): serves the
+/// House Control as a full page in a browser on this Mac (http://localhost:4821): serves the
 /// web UI and stands in for the WebKit bridge, so the page shows the real home and its
 /// devices exactly as the menu bar panel does.
 ///
@@ -10,7 +10,7 @@ import Foundation
 /// only send after a CORS preflight, which is never answered.
 @MainActor
 public final class BrowserBridge {
-    public static let port: UInt16 = 3017
+    public static let port: UInt16 = 4821
     public static let header = "x-house-bridge"
 
     private let root: URL

@@ -799,7 +799,7 @@ html.ios .fatal { margin: calc(env(safe-area-inset-top, 0px) + 20px) 16px 0; wid
   }
 }
 
-/* ---------- browser page (localhost:3017): the house fills the window, the controls
+/* ---------- browser page (localhost:4821): the house fills the window, the controls
    become a column on the right ---------- */
 
 html.web .plan-menu { display: none; }

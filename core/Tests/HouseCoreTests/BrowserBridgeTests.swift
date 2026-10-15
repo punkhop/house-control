@@ -14,7 +14,7 @@ final class BrowserBridgeTests: XCTestCase {
         bridge.boot = { ["plan": "custom", "config": ["name": "4821 Riverton </script>"]] }
     }
 
-    private func request(_ method: String, _ path: String, host: String = "localhost:3017", bridgeHeader: Bool = false, body: Any? = nil) -> HTTPRequest {
+    private func request(_ method: String, _ path: String, host: String = "localhost:4821", bridgeHeader: Bool = false, body: Any? = nil) -> HTTPRequest {
         var headers = ["host": host]
         if bridgeHeader { headers[BrowserBridge.header] = "1" }
         let data = body.flatMap { try? JSONSerialization.data(withJSONObject: $0) } ?? Data()
@@ -32,7 +32,7 @@ final class BrowserBridgeTests: XCTestCase {
 
     func testOtherHostNamesAreRefused() async {
         // A DNS-rebinding page reaches 127.0.0.1 under its own name.
-        let response = await bridge.handle(request("GET", "/", host: "evil.example:3017"))
+        let response = await bridge.handle(request("GET", "/", host: "evil.example:4821"))
         XCTAssertEqual(response.status, 421)
     }
 

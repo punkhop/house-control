@@ -1,5 +1,5 @@
 // Thin bridge to the native shell (the macOS menu bar app or the iPhone app). In a page the
-// Mac app serves itself (http://localhost:3017) the same messages go over HTTP; in any other
+// Mac app serves itself (http://localhost:4821) the same messages go over HTTP; in any other
 // browser every call is a no-op, so the same bundle runs under `vite dev` too.
 
 const webHandler = window.__HOUSE_BOOT__?.platform === 'web' ? httpHandler() : null;
@@ -20,7 +20,7 @@ function httpHandler() {
 }
 
 export const isNative = Boolean(handler) && !webHandler;
-/** The full page the Mac app serves at http://localhost:3017. */
+/** The full page the Mac app serves at http://localhost:4821. */
 export const isWeb = Boolean(webHandler);
 /** Real devices can be driven: inside the app, or from its browser page. */
 export const hasDevices = Boolean(handler);
