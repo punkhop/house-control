@@ -11,6 +11,7 @@ import { ACUnit } from './ac.js';
 import { LockUnit } from './lock.js';
 import { MediaUnit } from './media.js';
 import { SensorUnit } from './sensor.js';
+import { linkOf } from '../config.js';
 
 export const STAGE_BG = '#0a0e1a';
 
@@ -72,7 +73,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
   // floor past that renders black. Room lamps keep theirs; on a busy floor, rows of small
   // bulbs (a vanity) light without one.
   const SHADOW_BUDGET = 10;
-  const SHADOW_FIRST = ['ceiling', 'pendant', 'floor', 'softbox', 'stick', 'table', 'star', 'strip', 'spots', 'plug', 'fan', 'bulb', 'exhaust', 'cans', 'dome', 'group'];
+  const SHADOW_FIRST = ['ceiling', 'pendant', 'floor', 'softbox', 'stick', 'table', 'star', 'strip', 'spots', 'plug', 'fan', 'bulb', 'exhaust', 'cans', 'dome', 'sconce', 'group'];
   floorGroups.forEach((_, level) => {
     const casters = [...lights.values()]
       .filter((u) => u.cfg.level === level && u.lights.some((l) => l.castShadow))
@@ -234,10 +235,14 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
 
   /* ---------- state sync ---------- */
 
+  // A fixture with no device of its own that names a `group` (a second lamp on the same
+  // wall switch, even on another floor) shows that switch's state.
+  const lightState = (unit) => store.state.lights[unit.cfg.group && !linkOf(unit.cfg) ? unit.cfg.group : unit.id];
+
   function syncAll(opts = {}) {
     let i = 0;
-    for (const [id, unit] of lights) {
-      unit.apply(store.state.lights[id], { ...opts, delay: opts.stagger ? 0.25 + i++ * 0.06 : 0 });
+    for (const unit of lights.values()) {
+      unit.apply(lightState(unit), { ...opts, delay: opts.stagger ? 0.25 + i++ * 0.06 : 0 });
     }
     for (const [id, unit] of acs) unit.apply(store.state.acs[id], opts);
     for (const [id, unit] of locks) unit.apply(store.state.locks[id], opts);
@@ -248,7 +253,9 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
 
   const unsubscribe = store.on((change) => {
     if (change.type === 'tick') return;
-    if (change.type === 'light') lights.get(change.id)?.apply(store.state.lights[change.id]);
+    if (change.type === 'light') {
+      for (const unit of lights.values()) if (unit.id === change.id || unit.cfg.group === change.id) unit.apply(lightState(unit));
+    }
     else if (change.type === 'ac') acs.get(change.id)?.apply(store.state.acs[change.id]);
     else if (change.type === 'lock') locks.get(change.id)?.apply(store.state.locks[change.id]);
     else if (change.type === 'media') media.get(change.id)?.apply(store.state.media[change.id]);

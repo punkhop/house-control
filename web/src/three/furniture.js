@@ -162,7 +162,8 @@ const builders = {
 
   // A run of base cabinets with a counter; `hob` and `sink` sit at -1/4 and +1/4 of the run
   // (or any fraction along it), uppers on the wall behind when `upper`.
-  kitchen({ width = 3, upper = true, hob = true, sink = true, color = '#e4e1da', counter = '#33363d' }) {
+  // `dishwasher` puts a steel door at that fraction along the run.
+  kitchen({ width = 3, upper = true, hob = true, sink = true, dishwasher = false, color = '#e4e1da', counter = '#33363d' }) {
     const front = mat(color, { rough: 0.6 });
     const seam = mat(darker(color, 0.8));
     const n = Math.max(2, Math.round(width / 0.6));
@@ -178,6 +179,10 @@ const builders = {
       at(box(0.5, 0.012, 0.38, mat(METAL, { rough: 0.3, metal: 0.9 }), { r: 0 }), sx, 0.9, 0.02),
       at(cyl(0.015, 0.015, 0.24, mat(METAL, { rough: 0.25, metal: 0.9 }), 10), sx, 0.9, -0.22),
     );
+    if (dishwasher !== false) g.add(
+      at(box(0.6, 0.76, 0.012, mat(METAL, { rough: 0.3, metal: 0.8 }), { r: 0.004 }), dishwasher * width, 0.08, 0.3),
+      at(box(0.44, 0.02, 0.03, mat(METAL, { rough: 0.25, metal: 0.9 }), { r: 0.008 }), dishwasher * width, 0.74, 0.32),
+    );
     if (upper) {
       g.add(
         at(box(width, 0.72, 0.35, front, { r: 0.008 }), 0, 1.48, -0.125),
@@ -188,10 +193,10 @@ const builders = {
     return g;
   },
 
-  fridge() {
+  fridge({ height = 1.92 }) {
     const body = mat('#c5c9d0', { rough: 0.35, metal: 0.5 });
     return group(
-      at(box(0.7, 1.92, 0.68, body, { r: 0.025 }), 0, 0, 0),
+      at(box(0.7, height, 0.68, body, { r: 0.025 }), 0, 0, 0),
       at(box(0.66, 0.008, 0.005, mat('#7c8088'), { r: 0 }), 0, 1.25, 0.34),
       at(box(0.02, 0.5, 0.03, mat('#70747c', { metal: 0.7, rough: 0.3 }), { r: 0.008 }), -0.26, 1.34, 0.35),
       at(box(0.02, 0.4, 0.03, mat('#70747c', { metal: 0.7, rough: 0.3 }), { r: 0.008 }), -0.26, 0.76, 0.35),

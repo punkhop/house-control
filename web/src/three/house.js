@@ -68,15 +68,15 @@ function wallSegments(config) {
 // it climbs, rising one storey (or, from below, dropping one storey into the stairwell).
 function flight(room, H) {
   const g = new THREE.Group();
-  // `landing`: flat floor at the top end; `foot`: a landing at the low end, one step up.
-  const { climb, from, landing = 0, foot = 0 } = room.stairs;
+  // `landing`: flat floor at the top end; `foot`: a landing at the low end, `footSteps` up.
+  const { climb, from, landing = 0, foot = 0, footSteps = 1 } = room.stairs;
   const alongZ = climb.endsWith('z');
   const up = climb.startsWith('-') ? -1 : 1;
   const total = alongZ ? room.d : room.w;
   const len = total - landing - foot;
   const wide = (alongZ ? room.w : room.d) - 0.06;
   const n = Math.max(4, Math.round(H / 0.19));
-  const lead = foot > 0 ? 1 : 0;
+  const lead = foot > 0 ? footSteps : 0;
   const tread = len / (n - lead);
   const rise = H / n;
   const base = from === 'below' ? -H : 0;
@@ -95,7 +95,7 @@ function flight(room, H) {
     step.castShadow = step.receiveShadow = true;
     g.add(step, lip);
   };
-  if (lead) tread3d(lowEdge + up * foot / 2, foot, base + rise);
+  if (lead) tread3d(lowEdge + up * foot / 2, foot, base + rise * lead);
   for (let i = 0; i < n - lead; i++) {
     tread3d(lowEdge + up * (foot + tread * (i + 0.5)), tread, base + rise * (lead + i + 1));
   }

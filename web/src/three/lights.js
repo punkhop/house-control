@@ -89,6 +89,7 @@ const fixtures = {
         at(cyl(0.04, 0.05, 0.05, mat(DARK, { rough: 0.4, metal: 0.6 }), 16), x, y + 0.14, z),
       );
       const l = spot((cfg.intensity ?? 9) / offsets.length, y - 0.05);
+      if (offsets.length > 2 && lights.length) l.castShadow = false; // a chandelier: one shadow
       l.position.x = x; l.position.z = z;
       l.target.position.set(x, y - 1.05, z);
       lights.push(l);
@@ -113,21 +114,27 @@ const fixtures = {
   },
 
   // Recessed downlights flush with the ceiling: `cans` lists each one's [x, z] offset.
+  // `y` mounts them lower (puck lights under a cabinet), `radius` sizes the trim.
   cans(cfg, H) {
-    const y = H - 0.012;
+    const top = cfg.y ?? H;
+    const y = top - 0.012;
+    const r = cfg.radius ?? 0.085;
     const offsets = cfg.cans || [[0, 0]];
     const trim = mat('#e9e8e4', { rough: 0.5 });
-    const parts = offsets.map(([x, z]) => at(cyl(0.085, 0.085, 0.008, trim, 28), x, H - 0.008, z));
-    const glow = offsets.map(([x, z]) => at(cyl(0.065, 0.065, 0.006, glowMaterial(), 28), x, y - 0.003, z));
+    const parts = offsets.map(([x, z]) => at(cyl(r, r, 0.008, trim, 28), x, top - 0.008, z));
+    const glow = offsets.map(([x, z]) => at(cyl(r * 0.76, r * 0.76, 0.006, glowMaterial(), 28), x, y - 0.003, z));
     const xs = offsets.map((o) => o[0]);
     const zs = offsets.map((o) => o[1]);
-    const light = spot(cfg.intensity ?? 20, y - 0.02);
-    const cx = (Math.max(...xs) + Math.min(...xs)) / 2;
-    const cz = (Math.max(...zs) + Math.min(...zs)) / 2;
-    light.position.x = cx; light.position.z = cz;
-    light.target.position.set(cx, y - 1.02, cz);
+    // One beam per can, sharing the switch's brightness; only the first casts shadows.
+    const lights = offsets.map(([x, z], i) => {
+      const l = spot((cfg.intensity ?? 20) / Math.sqrt(offsets.length), y - 0.02);
+      if (i) l.castShadow = false;
+      l.position.x = x; l.position.z = z;
+      l.target.position.set(x, y - 1.02, z);
+      return l;
+    });
     return {
-      parts, glow, lights: [light],
+      parts, glow, lights,
       hit: [0.4 + Math.max(...xs) - Math.min(...xs), 0.3, 0.4 + Math.max(...zs) - Math.min(...zs), y - 0.1],
     };
   },
@@ -307,6 +314,37 @@ const fixtures = {
       glow: [at(new THREE.Mesh(new THREE.SphereGeometry(0.045, 20, 14), glowMaterial()), 0, y, 0.07)],
       lights: [point(cfg.intensity ?? 0.5, y, { shadow: false, distance: 2.5, z: 0.12 })],
       hit: [0.2, 0.25, 0.25, y],
+    };
+  },
+
+  // A wall lantern (a porch light): a backplate on the wall and a glowing box facing +z.
+  // `globe` draws a glass ball on a brass arm instead.
+  sconce(cfg) {
+    const y = cfg.y ?? 1.9;
+    const frame = mat(DARK, { rough: 0.4, metal: 0.5 });
+    if (cfg.globe) {
+      const brass = mat('#b08d57', { rough: 0.35, metal: 0.8 });
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.13, 32, 20), glowMaterial());
+      ball.position.set(0, y, 0.2);
+      return {
+        parts: [
+          at(box(0.03, 0.14, 0.02, brass, { r: 0.005 }), 0, y - 0.07, 0.01),
+          at(box(0.015, 0.015, 0.2, brass, { r: 0.004 }), 0, y - 0.0075, 0.1),
+        ],
+        glow: [ball],
+        lights: [point(cfg.intensity ?? 1.6, y, { distance: 6, z: 0.2 })],
+        hit: [0.35, 0.35, 0.45, y],
+      };
+    }
+    return {
+      parts: [
+        at(box(0.12, 0.2, 0.02, frame, { r: 0.006 }), 0, y - 0.1, 0.01),
+        at(box(0.17, 0.02, 0.17, frame, { r: 0.004 }), 0, y + 0.13, 0.08),
+        at(box(0.13, 0.015, 0.13, frame, { r: 0.004 }), 0, y - 0.135, 0.08),
+      ],
+      glow: [at(box(0.12, 0.25, 0.12, glowMaterial(), { r: 0.01 }), 0, y - 0.125, 0.08)],
+      lights: [point(cfg.intensity ?? 1.2, y, { distance: 5, z: 0.2 })],
+      hit: [0.3, 0.45, 0.35, y],
     };
   },
 
