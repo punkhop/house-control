@@ -348,6 +348,28 @@ const fixtures = {
     };
   },
 
+  // A star projector (Govee H6093): a round foot, two side arms, a ball head tipped up with its lens glowing.
+  starProjector(cfg) {
+    const y = cfg.y ?? 0;
+    const black = mat(DARK, { rough: 0.5 });
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.075, 28, 18), black);
+    head.position.set(0, y + 0.13, 0);
+    const lens = cyl(0.04, 0.04, 0.012, glowMaterial(), 24);
+    lens.rotation.x = Math.PI / 2 - 0.6;
+    lens.position.set(0, y + 0.13 + 0.07 * Math.sin(0.6), 0.07 * Math.cos(0.6));
+    return {
+      parts: [
+        at(cyl(0.09, 0.09, 0.012, black, 28), 0, y, 0),
+        at(box(0.012, 0.13, 0.04, black, { r: 0.004 }), -0.082, y + 0.012, 0),
+        at(box(0.012, 0.13, 0.04, black, { r: 0.004 }), 0.082, y + 0.012, 0),
+        head,
+      ],
+      glow: [lens],
+      lights: [point(cfg.intensity ?? 1.2, y + 0.3, { z: 0.1 })],
+      hit: [0.3, 0.3, 0.3, y + 0.12],
+    };
+  },
+
   // A star-shaped lamp: a five-point star standing up, glowing.
   star(cfg) {
     const y = cfg.y ?? 0.5;
